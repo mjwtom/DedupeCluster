@@ -1,0 +1,113 @@
+/*
+ * storage-manager.h
+ *
+ *  Created on: 2012-7-14
+ *      Author: BadBoy
+ */
+
+#ifndef STORAGE_MANAGER_H_
+#define STORAGE_MANAGER_H_
+
+#include <stdio.h>
+#include <stdint.h>
+
+#include "config.h"
+#include "my-lock.h"
+
+struct storage_manager
+{
+	FILE *f;
+	uint64_t allocted_offset;
+	struct my_lock lock;
+};
+
+uint64_t get_new_block(struct storage_manager * manager, uint64_t len)
+{
+	uint64_t offset;
+	mylock(&manager->lock);
+	offset = manager->allocted_offset;
+	manager->allocted_offset += len;
+	myunlock(&manager->lock);
+	//printf("%ld\n", offset);
+	return offset;
+}
+
+uint64_t get_new_seg(struct storage_manager * manager)
+{
+	return get_new_block(manager, SEG_SIZE);
+}
+
+int storage_manager_init(struct storage_manager * manager, char * file_name)
+{
+	init_mylock(&manager->lock);
+	manager->f= fopen(file_name, "wb+");
+	if(NULL == manager->f)
+	{
+		printf("can't open metadatafile %s\n", file_name);
+		return -1;
+	}
+	manager->allocted_offset = 0;
+	return 0;
+}
+
+int storage_manager_destroy(struct storage_manager * manager)
+{
+	fclose(manager->f);
+	return 0;
+}
+
+void myseek(FILE * handle, uint64_t a)
+{
+	int ret;
+	if ((ret = fseek(handle, a, SEEK_SET)) < 0)
+	{
+		printf("seek locate %ld\n", a);
+		perror("Can not seek locally!");
+	}
+}
+
+int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+{
+	size_t res;
+	//printf("read offset %ld\n", a);
+	mylock(&manager->lock);
+	myseek(manager->f, a);
+	res = fread(buf, 1, len, manager->f);
+	myunlock(&manager->lock);
+	return (res < 0 || (size_t)res != len);
+}
+
+int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+{
+	size_t res;
+	//printf("write offset %ld\n", a);
+	mylock(&manager->lock);
+	myseek(manager->f, a);
+	res = fwrite(buf, 1, len, manager->f);
+	myunlock(&manager->lock);
+	return (res < 0 ||(size_t)res != len);
+}
+
+/*int simpleread(uint64_t a, void *buf, size_t len, FILE * handle)
+{
+	size_t res;
+	//printf("read offset %ld\n", a);
+	mylock(&wr_lock);
+	myseek(handle, a);
+	res = fread(buf, 1, len, handle);
+	myunlock(&wr_lock);
+	return (res < 0 || (size_t)res != len);
+}
+
+int simplewrite(uint64_t a, void *buf, size_t len, FILE * handle)
+{
+	size_t res;
+	//printf("write offset %ld\n", a);
+	mylock(&wr_lock);
+	myseek(handle, a);
+	res = fwrite(buf, 1, len, handle);
+	myunlock(&wr_lock);
+	return (res < 0 ||(size_t)res != len);
+}*/
+
+#endif /* STORAGE_MANAGER_H_ */

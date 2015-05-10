@@ -1,0 +1,417 @@
+/*
+ * chunk.c
+ *
+ *  Created on: 2012-7-13
+ *      Author: BadBoy
+ */
+#ifndef CHUNK_H_
+#define CHUNK_H_
+
+#include <stdlib.h>
+#include <stdint.h>
+#include "adler32.h"
+#include "config.h"
+#include "thread.h"
+#include <string.h>
+
+
+#ifdef DEBUG
+int run_chunk_thread = 0;
+struct my_lock chunk_lock;
+#endif
+
+struct chunk_node
+{
+	int len;
+	char buf[TO_CHUNK_BUF_SIZE];
+	struct list list;
+};
+
+struct chunk_pool
+{
+	pthread_cond_t coun;
+	pthread_mutex_t mutex;
+	struct list list;
+	uint32_t len;
+};
+
+struct chunk_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to;
+	struct chunk_pool * from_rcv;
+	struct chunk_pool * to_rcv;
+	char chunk_buf[MAX_CHUNK_LEN];
+};
+
+
+int chunk_pool_init(struct chunk_pool * pool)
+{
+	pthread_mutex_init(&pool->mutex, NULL);
+	pthread_cond_init(&pool->coun, NULL);
+	list_init(&pool->list);
+	pool->len = 0;
+	return 0;
+}
+
+
+struct chunk_node * get_chunk_data_node(struct chunk_pool * pool, int *len)
+{
+	struct chunk_node * data_node;
+	struct list * list;
+	pthread_mutex_lock (&pool->mutex);
+	while(0 >= pool->len)
+	{
+		pthread_cond_wait(&pool->coun, &pool->mutex);
+	}
+	list = list_first(&pool->list);
+	list_del(list);
+	pool->len --;
+#ifdef DEBUG
+	*len = pool->len;
+#endif
+	if(NULL == list)
+		return NULL;
+	data_node = list_item(list, struct chunk_node);
+	pthread_mutex_unlock (&pool->mutex);
+	return data_node;
+}
+
+
+
+int put_chunk_data_node(struct chunk_pool* pool, struct chunk_node * data_node)
+{
+	if(NULL == pool)
+		return -1;
+	pthread_mutex_lock (&pool->mutex);
+	list_add(&pool->list, &data_node->list);
+	pool->len ++;
+	pthread_mutex_unlock (&pool->mutex);
+	pthread_cond_signal(&pool->coun);
+	return 0;
+}
+
+
+int chunk_batch(char * chunk_buf, int len, struct chunk_arg *chunk_arg, int end)
+{
+	static int batch_len = 0;
+	static struct data_node * node = NULL;
+	struct node_pool * from;
+	struct node_pool * to;
+#ifdef DEBUG
+	int mylen;
+	static int32_t id = 0;
+#endif
+
+	from = chunk_arg->from;
+	to = chunk_arg->to;
+
+	if(NULL == node)
+	{
+		node = get_data_node(from, &mylen);
+#ifdef DEBUG
+		node->id = id;
+		id ++;
+#endif
+		node->calculate_type = CHUNK_THREAD;
+		node->line_type = CUR_LINE_TYPE;
+		batch_len = 0;
+	}
+
+	memcpy(node->data + batch_len * MAX_CHUNK_LEN, chunk_buf, len);
+	node->metadata[batch_len].origin_len = len;
+	batch_len ++;
+	if((BATCH_NUM == batch_len) || end)
+	{
+		node->data_len = batch_len;
+		put_data_node(to, node);
+		node = NULL;
+	}
+	return 0;
+}
+
+void * fixed_chunk_thread(struct chunk_arg *chunk_arg)
+{
+	uint32_t chunk_num;
+
+#ifdef DEBUG
+	int mylen;
+	int mybuflen;
+	struct timeval start, end;
+#endif
+
+	int parsed_len;
+	int cpy_len;
+	int len;
+
+	int i = 0;
+
+	struct chunk_node * chunk_node;
+	struct data_node * node;
+
+	while(chunk_arg->header.go_on)
+	{
+		chunk_node = get_chunk_data_node(chunk_arg->from_rcv, &mybuflen);
+		printf("chunk thread from rec pool node is %d\n", mybuflen);
+//		printf("get chunk buffer %d\n", i);
+		i ++;
+		parsed_len = 0;
+		len = chunk_node->len;
+		while(parsed_len < len)
+		{
+			node = get_data_node(chunk_arg->from, &mylen);
+			node->calculate_type = CHUNK_THREAD;
+			node->line_type = CUR_LINE_TYPE;
+#ifdef DEBUG
+			gettimeofday(&start, NULL);
+#endif
+			chunk_num = 0;
+			while((chunk_num < BATCH_NUM) && (parsed_len < len))
+			{
+				if(len - parsed_len < MEAN_CHUNK_LEN)
+				{
+					cpy_len = len - parsed_len;
+				}
+				else
+				{
+					cpy_len = MEAN_CHUNK_LEN;
+				}
+				memcpy(node->data + chunk_num * MAX_CHUNK_LEN, chunk_node->buf + parsed_len, cpy_len);
+				node->metadata[chunk_num].origin_len = cpy_len;
+				parsed_len += cpy_len;
+				chunk_num ++;
+			}
+			node->data_len = chunk_num;
+#ifdef DEBUG
+			gettimeofday(&end, NULL);
+			node->time_used = td(&start, &end);
+#endif
+			put_data_node(chunk_arg->to, node);
+		}
+		put_chunk_data_node(chunk_arg->to_rcv, chunk_node);
+	}
+	return NULL;
+}
+
+void * chunk_thread(struct chunk_arg *chunk_arg)
+{
+	char first;
+	int in_chunk_len;
+	uint32_t abstract;
+	char * win_start;
+	char * data_start;
+	char new;
+	uint32_t chunk_num;
+
+#ifdef DEBUG
+	int mylen;
+	int mybuflen;
+	struct timeval start, end;
+#endif
+
+	int parsed_len;
+	int cpy_len;
+	int len;
+
+	int i = 0;
+
+	struct chunk_node * chunk_node;
+	struct data_node * node;
+
+	while(chunk_arg->header.go_on)
+	{
+		chunk_node = get_chunk_data_node(chunk_arg->from_rcv, &mybuflen);
+		printf("chunk thread from rec pool node is %d\n", mybuflen);
+//		printf("get chunk buffer %d\n", i);
+		i ++;
+		parsed_len = 0;
+		len = chunk_node->len;
+		while(parsed_len < len)
+		{
+			node = get_data_node(chunk_arg->from, &mylen);
+			node->calculate_type = CHUNK_THREAD;
+			node->line_type = CUR_LINE_TYPE;
+#ifdef DEBUG
+			printf("in_chunk_from buf %d\n", mylen);
+			mylock(&chunk_lock);
+			run_chunk_thread ++;
+			myunlock(&chunk_lock);
+			gettimeofday(&start, NULL);
+#endif
+			chunk_num = 0;
+			while((chunk_num < BATCH_NUM) && (parsed_len < len))
+			{
+				if(len - parsed_len < MIN_CHUNK_LEN)
+				{
+					cpy_len = len - parsed_len;
+				}
+				else
+				{
+					cpy_len = MIN_CHUNK_LEN;
+				}
+				memcpy(node->data + chunk_num * MAX_CHUNK_LEN, chunk_node->buf + parsed_len, cpy_len);
+				node->metadata[chunk_num].origin_len = cpy_len;
+				parsed_len += cpy_len;
+				in_chunk_len = cpy_len;
+				if(MIN_CHUNK_LEN == cpy_len)
+				{
+					win_start = node->data + chunk_num * MAX_CHUNK_LEN + MIN_CHUNK_LEN - WIN_LEN;
+					data_start = chunk_node->buf + parsed_len;
+					abstract = adler32_checksum(win_start, WIN_LEN);
+				}
+				while((parsed_len < len) &&((abstract & CHUNK_MASK) != CHUNK_MASK) && (in_chunk_len < MAX_CHUNK_LEN))
+				{
+					new = * data_start;
+					node->data[chunk_num * MAX_CHUNK_LEN + in_chunk_len] = chunk_node->buf[parsed_len];
+					in_chunk_len ++;
+					parsed_len ++;
+					first = * win_start;
+					abstract = adler32_rolling_checksum(abstract, WIN_LEN, first, new);
+					win_start ++;
+					data_start ++;
+				}
+				node->metadata[chunk_num].origin_len = in_chunk_len;
+				chunk_num ++;
+			}
+			node->data_len = chunk_num;
+#ifdef DEBUG
+			gettimeofday(&end, NULL);
+			node->time_used = td(&start, &end);
+			mylock(&chunk_lock);
+			run_chunk_thread --;
+			myunlock(&chunk_lock);
+#endif
+			put_data_node(chunk_arg->to, node);
+		}
+		put_chunk_data_node(chunk_arg->to_rcv, chunk_node);
+	}
+	return NULL;
+}
+
+int to_chunk_buf(struct chunk_arg *chunk_arg, char * buf, int len)
+{
+	static int in_buf_len = 0;
+	static struct chunk_node * chunk_node = NULL;
+#ifdef DEBUG
+	int mybuflen;
+#endif
+	if(NULL == chunk_node)
+	{
+		chunk_node = get_chunk_data_node(chunk_arg->to_rcv, &mybuflen);
+		printf("receive from rec pool node is %d\n", mybuflen);
+	}
+	if(TO_CHUNK_BUF_SIZE - in_buf_len < len)
+	{
+		chunk_node->len = in_buf_len;
+		put_chunk_data_node(chunk_arg->from_rcv, chunk_node);
+		chunk_node = get_chunk_data_node(chunk_arg->to_rcv, &mybuflen);
+		printf("receive from rec pool node is %d\n", mybuflen);
+		in_buf_len = 0;
+	}
+	memcpy(chunk_node->buf + in_buf_len, buf, len);
+	in_buf_len += len;
+	return 0;
+}
+
+/*int chunk(char * data, size_t len, int cont, int file_end, struct chunk_arg *chunk_arg)
+{
+	static char first;
+	static int in_chunk_len = 0;
+	static uint32_t abstract;
+	static char * win_start;
+	char new;
+	uint32_t chunk_num;
+	char * chunk_buf;
+
+	chunk_buf = chunk_arg->chunk_buf;
+
+	int parsed_len;
+	int cpy_len;
+
+	if(NULL == chunk_buf)
+		return -1;
+	if(NULL == data)
+		return -1;
+
+	parsed_len = 0;
+	//if the data is not continued with the previous one, clean the data in chunk_buf
+	if(0 == cont)
+	{
+		in_chunk_len = 0;
+	}
+	chunk_num = 0;
+	while(parsed_len < len)
+	{
+		if(in_chunk_len < MIN_CHUNK_LEN)
+		{
+			cpy_len = MIN_CHUNK_LEN - in_chunk_len;
+			if(cpy_len > (len - parsed_len))
+			{
+				cpy_len = len - parsed_len;
+				memcpy(chunk_buf + in_chunk_len, data + parsed_len, cpy_len);
+				in_chunk_len += cpy_len;
+				parsed_len += cpy_len;
+			}
+			else
+			{
+				memcpy(chunk_buf + in_chunk_len, data + parsed_len, cpy_len);
+				in_chunk_len += cpy_len;
+				parsed_len += cpy_len;
+
+				win_start = chunk_buf + MIN_CHUNK_LEN - WIN_LEN;
+				first = * win_start;
+
+				abstract = adler32_checksum(win_start, WIN_LEN);
+				if((abstract & CHUNK_MASK) == CHUNK_MASK)
+				{
+					// a chunk
+					chunk_batch(chunk_buf, in_chunk_len, chunk_arg, 0);
+					in_chunk_len = 0;
+					chunk_num ++;
+				}
+			}
+		}
+		else
+		{
+			new = *(data + parsed_len);
+			chunk_buf[in_chunk_len] = data[parsed_len];
+			in_chunk_len ++;
+			parsed_len ++;
+
+			if(in_chunk_len >= MAX_CHUNK_LEN)
+			{
+				// a chunk
+				chunk_batch(chunk_buf, in_chunk_len, chunk_arg, 0);
+				in_chunk_len = 0;
+				chunk_num ++;
+			}
+
+			first = * win_start;
+			abstract = adler32_rolling_checksum(abstract, WIN_LEN, first, new);
+			win_start ++;
+
+			if((abstract & CHUNK_MASK) == CHUNK_MASK)
+			{
+				// a chunk
+				chunk_batch(chunk_buf, in_chunk_len, chunk_arg, 0);
+				in_chunk_len = 0;
+				chunk_num ++;
+			}
+		}
+	}
+
+	//file ends the last chunk
+	if(0 != file_end)
+	{
+		if(in_chunk_len > 0)
+		{
+			chunk_batch(chunk_buf, in_chunk_len, chunk_arg, 1);
+			in_chunk_len = 0;
+			chunk_num ++;
+		}
+	}
+	return chunk_num;
+}*/
+
+#endif

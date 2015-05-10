@@ -1,0 +1,32 @@
+/*
+ * my-time.h
+ *
+ *  Created on: 2012-11-8
+ *      Author: badboy
+ */
+
+#ifndef MY_TIME_H_
+#define MY_TIME_H_
+
+#ifdef DEBUG
+uint64_t compress_time;
+uint64_t hash_time;
+uint64_t identify_time;
+uint64_t encrypt_time;
+uint64_t store_time;
+uint64_t chunk_time;
+
+
+uint64_t data_len;
+uint64_t compress_len;
+uint64_t unique_len;
+uint64_t dup_len;
+#endif
+
+unsigned long long td( struct timeval *t1, struct timeval *t2 ) {
+        unsigned long long dt = t2->tv_sec * 1000000 + t2->tv_usec;
+        return dt - t1->tv_sec * 1000000 - t1->tv_usec;
+}
+
+
+#endif /* MY_TIME_H_ */

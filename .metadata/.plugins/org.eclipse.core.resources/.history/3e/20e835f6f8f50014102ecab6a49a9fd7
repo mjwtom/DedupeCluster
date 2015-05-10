@@ -1,0 +1,297 @@
+/*
+ ============================================================================
+ Name        : dedupe-server.c
+ Author      : 
+ Version     :
+ Copyright   : Your copyright notice
+ Description : Hello World in C, Ansi-style
+ ============================================================================
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+
+#include "config.h"
+#include "network.h"
+#include "protocol.h"
+#include "dedupe.h"
+
+#include "chunk.h"
+#ifdef COMPRESS
+#include "lzjb.h"
+#endif
+
+#define READ_LEN (16 * 1024 * 1024)
+
+
+int create_file(char * name, struct dedup_manager * dedup)
+{
+	struct file f;
+	strcpy(f.name, name);
+	f.metadata_start_offset = dedup->mt_seg.mt_seg_offset + sizeof(struct metadata) * dedup->mt_seg.len + sizeof(struct mtdata_seg_header);
+	add_2_file(f, &(dedup->f_seg));
+	return 0;
+}
+
+int end_file(struct dedup_manager * dedup)
+{
+	int pos;
+	struct file_seg * f_seg;
+	f_seg = &(dedup->f_seg);
+	pos = f_seg->len -1;
+	f_seg->file[pos].metadata_end_offset = dedup->mt_seg.mt_seg_offset + sizeof(struct metadata) * dedup->mt_seg.len + sizeof(struct mtdata_seg_header);
+	return 0;
+}
+
+int write_file(struct file f, struct dedup_manager * dedup, char * name)
+{
+	FILE * fp;
+	char * buf;
+#ifdef COMPRESS
+	char * uncom_buf;
+	int uncom_len;
+#endif
+	int ret;
+	int i;
+	fp = fopen(name, "w+");
+	struct metadata * mtdata;
+	mtdata = malloc(f.chunk_num * (sizeof(struct metadata)));
+	buf = malloc(MAX_CHUNK_LEN);
+#ifdef COMPRESS
+	uncom_buf = malloc (MAX_COMPRESS_LEN);
+#endif
+	ret = get_metadata(&(dedup->mt_seg), mtdata, f.chunk_num, f.metadata_start_offset);
+	if(ret < f.chunk_num)
+	{
+		puts("can't get all metadata for the file");
+	}
+	for(i = 0 ; i < ret ; i ++)
+	{
+		get_data(buf, mtdata[i].offset, mtdata[i].len, &(dedup->dt_seg));
+#ifdef COMPRESS
+		uncom_len = lzjb_decompress(buf, uncom_buf, mtdata[i].len, MAX_COMPRESS_LEN, 0);
+		fwrite(uncom_buf, 1, mtdata[i].origin_len, fp);
+#else
+		fwrite(buf, 1, mtdata[i].len, fp);
+#endif
+	}
+	fclose(fp);
+	free(mtdata);
+	free(buf);
+#ifdef COMPRESS
+	free(uncom_buf);
+#endif
+	return 0;
+}
+
+int main2(int argc, char* argv[])
+{
+	char * buf;
+	FILE * f;
+	struct dedup_manager * dedup;
+	int ret;
+	int file_pos;
+	struct dirent *ptr;
+	DIR *dir;
+	char file_name[100];
+	int32_t read_len;
+	int i = 0;
+	puts("hello");
+	argc --;  argv ++; //skip the program name itself
+	dedup = malloc(sizeof(struct dedup_manager));
+	dedup_init(dedup, *argv);
+	argc --;  argv ++;
+	buf = malloc (READ_LEN);
+	dir=opendir(*argv);
+	if(NULL == dir)
+	{
+		puts("can't open the archive directory");
+		return 0;
+	}
+	while((ptr=readdir(dir))!=NULL)
+	{
+		if(ptr->d_name[0] == '.')
+			continue;
+		strcpy(file_name, *argv);
+		strcat(file_name, ptr->d_name);
+		f = fopen(file_name, "r");
+		printf("file %d\n", i);
+		i ++;
+		create_file(file_name, dedup);
+		if (NULL == f)
+		{
+			printf("!!!Can't open the file %s!!!\n", *argv);
+			exit(0);
+		}
+		read_len = fread(buf, 1, READ_LEN, f);
+		while(read_len > 0)
+		{
+			//dedup_m->f_seg.file[dedup_m->f_seg.len].chunk_num
+			ret = chunk(dedup->chunk_buf, buf, read_len, 0, 1, dedup);
+			file_pos = dedup->f_seg.len -1;
+			dedup->f_seg.file[file_pos].chunk_num = ret;
+			read_len = fread(buf, 1, READ_LEN, f);
+		}
+		fclose(f);
+		end_file(dedup);
+#ifdef DEBUG
+#ifdef COMPRESS
+		printf("total len %ld, compressed len %ld\n dup len %ld, unique len %ld, compressed unique len %ld\n", total_len, compressed_len, dup_len, unique_len, comp_unique_len);
+#else
+		printf("total len %ld, dup len %ld, unique len %ld\n", total_len, dup_len, unique_len);
+#endif
+#endif
+	}
+	free(buf);
+
+
+	//struct file cmd_file;
+	int end = 0;
+	char cmd[100];
+	char name[100];
+	struct file * cmd_file;
+	char * name_p;
+	while(0 == end)
+	{
+		printf("input the command:");
+		scanf("%s", cmd);
+		if(0 == strcmp(cmd, "file"))
+		{
+			cmd_file = malloc(200 * sizeof(struct file));
+			ret = get_files(cmd_file, 200, ALL, &(dedup->f_seg));
+			for(i = 0 ; i < ret; i ++)
+			{
+				printf("File name %s;\nStart metadata offset %ld;\nEnd metadata offset %ld\n; chunk number %d\n", cmd_file[i].name, cmd_file[i].metadata_start_offset, cmd_file[i].metadata_end_offset, cmd_file[i].chunk_num);
+				strcpy(name, "/home/BadBoy/recovery/");
+				name_p = cmd_file[i].name + 21;
+				strcat(name, name_p);
+				write_file(cmd_file[i], dedup, name);
+			}
+			free(cmd_file);
+		}
+		if(0 == strcmp(cmd, "end"))
+		{
+			end = 1;
+		}
+	}
+	free(dedup);
+	puts("!!!bye!!!");
+	return EXIT_SUCCESS;
+}
+
+int check(char * fp, char * chunk, uint32_t len, struct dedupe_manager * dm)
+{
+	int ret = 0;
+	int need_load_cache;
+	struct metadata mtdata;
+	struct disk_hash_node node;
+
+	need_load_cache = 0;
+	mtdata.len = len;
+	memcpy(mtdata.fingerprint, fp, FINGERPRINT_LEN);
+	ret = bloom_filter_lookup(dm->bf, (unsigned int *) mtdata.fingerprint);
+	if(1 == ret)
+	{
+		ret = lookup_in_cache(&dm->cache, mtdata.fingerprint, &mtdata);
+		if(0 == ret)
+		{
+			ret = lookup_fingerprint_in_disk_hash(&dm->disk_hash, mtdata.fingerprint, &node);
+			if(1 == ret)
+			{
+				mtdata.offset = node.data_offset;
+				need_load_cache = 1;
+			}
+		}
+	}
+	if(0 == ret)
+	{
+		mtdata.offset = add_data(chunk, len, &dm->dt_seg);
+		node.data_len = len;
+		node.mtdata_offset = add_metadata(mtdata, &(dedup->mt_seg));
+		node.data_offset = mtdata.offset;
+		memcpy(node.fingerprint, mtdata.fingerprint, FINGERPRINT_LEN);
+		add_2_disk_hash(&dm->disk_hash, node);
+	}
+	else
+	{
+		add_metadata(mtdata, &(dedup->mt_seg));
+		if(need_load_cache)
+		{
+			load_cache(&(dedup->mt_seg), dedup->mtdata, node.mtdata_offset, &dedup->cache);
+		}
+	}
+#ifdef DEBUG
+	if(1 == ret)
+	{
+		dup_len += ori_len;
+	}
+	else
+	{
+		unique_len += ori_len;
+#ifdef COMPRESS
+		comp_unique_len += len;
+#endif
+	}
+#endif
+	return ret;
+}
+
+int dedupe(int fd)
+{
+	struct msg_head msg;
+	size_t recv_size;
+	char * buf, *recv_buf;
+	buf = malloc(MAX_BUF_SIZE);
+	while(1)
+	{
+		if((recv_size = recv(fd, &msg, sizeof(msg), 0)) != sizeof(msg))
+		{
+			printf("recv data error");
+			return -1;
+		}
+		switch(msg.type)
+		{
+		case PRO_DATA:
+			recv_buf = buf;
+			while(msg.len > 0)
+			{
+				if((recv_size = recv(fd, recv_buf, msg.len, 0)) == -1)
+				{
+					printf("recv data error");
+					return -1;
+				}
+				msg.len -= recv_size;
+				recv_buf += recv_size;
+			}
+			msg.type = PRO_OK;
+			if((recv_size = send(fd, &msg, sizeof(msg), 0)) != sizeof(msg))
+			{
+				printf("send data error");
+				return -1;
+			}
+			break;
+		case PRO_END:
+			break;
+		}
+	}
+	free(buf);
+	return 0;
+}
+
+int main(int argc, char* argv[])
+{
+	int fd, client_fd;
+	short port;
+	struct dedupe_manager *dm;
+	dm = (struct dedupe_manager*)malloc(sizeof(struct dedupe_manager));
+	//skip the programe name itself
+	argc --;
+	argv ++;
+	port = atoi(*argv);
+	fd = get_server_socket(port);
+	client_fd = accept_client(fd);
+	dedupe(client_fd);
+	close(client_fd);
+	return EXIT_SUCCESS;
+}

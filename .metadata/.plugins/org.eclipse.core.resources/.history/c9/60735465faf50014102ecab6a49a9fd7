@@ -1,0 +1,182 @@
+/*
+ * disk-hash.h
+ *
+ *  Created on: 2011-7-20
+ *      Author: badboy
+ */
+
+#ifndef DISK_HASH_H_
+#define DISK_HASH_H_
+
+#include <stdint.h>
+#include <stdio.h>
+#include "config.h"
+#include "storage-manager.h"
+#include "disk.h"
+
+struct disk_hash_seg_header
+{
+	uint64_t previous;
+	uint64_t next;
+};
+
+struct disk_hash_node
+{
+	char fingerprint[FINGERPRINT_LEN];
+	uint32_t data_len;
+	uint64_t data_offset;
+	uint64_t mtdata_offset;
+};
+
+#define DISKHASH_PER_SEG ((SEG_SIZE - sizeof(struct disk_hash_seg_header))/ sizeof(struct disk_hash_node))
+
+struct hash_bucket
+{
+	struct disk_hash_seg_header header;
+	uint32_t seg_stored_len;
+	uint32_t len;
+	uint64_t write_offset;
+	uint64_t cur_seg_offset;
+	struct disk_hash_node disk_hash_node[MEM_HASH_NUM];
+};
+
+struct disk_hash
+{
+	struct storage_manager * manager;
+	char read_seg[SEG_SIZE];
+	struct hash_bucket hash_bucket[BUKET_NUM];
+};
+
+int disk_hash_init(struct disk_hash * disk_hash)
+{
+	int i;
+	if(NULL == disk_hash)
+		return -1;
+	for(i = 0 ; i < BUKET_NUM ; i ++)
+	{
+		disk_hash->hash_bucket[i].seg_stored_len = 0;
+		disk_hash->hash_bucket[i].header.previous = 0XFFFFFFFFFFFFFFFF;
+		disk_hash->hash_bucket[i].len = 0;
+		disk_hash->hash_bucket[i].cur_seg_offset = get_new_seg(disk_hash->manager);
+		disk_hash->hash_bucket[i].write_offset = disk_hash->hash_bucket[i].cur_seg_offset;
+		simplewrite(disk_hash->hash_bucket[i].write_offset, &disk_hash->hash_bucket[i].header, sizeof(struct disk_hash_seg_header), disk_hash->manager->f);
+		disk_hash->hash_bucket[i].write_offset += sizeof(struct disk_hash_seg_header);
+	}
+	return 0;
+}
+
+
+
+int add_2_disk_hash(struct disk_hash * disk_hash, struct disk_hash_node disk_hash_node)
+{
+	uint32_t first_int;
+	uint32_t index;
+	uint32_t left_seg_len;
+	uint32_t left_store_len;
+	uint32_t store_pos;
+	int pos;
+
+	memcpy((void *)&first_int, (void *) (disk_hash_node.fingerprint), sizeof(uint32_t));
+	index = first_int & DISK_HASH_MASK;
+	if(disk_hash->hash_bucket[index].len >= MEM_HASH_NUM)
+	{
+		left_store_len = MEM_HASH_NUM;
+		store_pos = 0;
+		while(left_store_len > 0)
+		{
+			left_seg_len = DISKHASH_PER_SEG - disk_hash->hash_bucket[index].seg_stored_len;
+			if(left_seg_len > left_store_len)
+			{
+				simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_store_len * sizeof(struct disk_hash_node), disk_hash->manager->f);
+				disk_hash->hash_bucket[index].len -= left_store_len;
+				disk_hash->hash_bucket[index].seg_stored_len += left_store_len;
+				disk_hash->hash_bucket[index].write_offset += left_store_len * sizeof(struct disk_hash_node);
+				left_store_len -= left_store_len;
+				store_pos += left_store_len;
+			}
+			else
+			{
+				simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_seg_len * sizeof(struct disk_hash_node), disk_hash->manager->f);
+				disk_hash->hash_bucket[index].header.previous = disk_hash->hash_bucket[index].cur_seg_offset;
+				disk_hash->hash_bucket[index].cur_seg_offset = get_new_seg(disk_hash->manager);
+				disk_hash->hash_bucket[index].write_offset = disk_hash->hash_bucket[index].cur_seg_offset;
+
+				simplewrite(disk_hash->hash_bucket[index].write_offset, &disk_hash->hash_bucket[index].header, sizeof(struct disk_hash_seg_header), disk_hash->manager->f);
+				disk_hash->hash_bucket[index].write_offset += sizeof(struct disk_hash_seg_header);
+
+				disk_hash->hash_bucket[index].len -= left_seg_len;
+				disk_hash->hash_bucket[index].seg_stored_len = 0;
+
+				left_store_len -= left_seg_len;
+				store_pos += left_seg_len;
+			}
+		}
+	}
+	pos = disk_hash->hash_bucket[index].len;
+	memcpy(&(disk_hash->hash_bucket[index].disk_hash_node[pos]), &disk_hash_node, sizeof(struct disk_hash_node));
+	disk_hash->hash_bucket[index].len ++;
+	return 0;
+}
+
+
+
+
+int lookup_fingerprint_in_disk_hash(struct disk_hash * disk_hash, char fingerprint[FINGERPRINT_LEN], struct disk_hash_node * disk_hash_node)
+{
+	uint32_t first_int;
+	uint32_t index;
+	size_t len;
+	uint32_t read_len;
+	uint64_t read_offset;
+	struct disk_hash_seg_header * header;
+	struct disk_hash_node * node;
+	int i;
+	memcpy((void *)&first_int, (void *)fingerprint, sizeof(uint32_t));
+	index = first_int & DISK_HASH_MASK;
+	len = disk_hash->hash_bucket[index].len;
+	for(i = 1 ; i < len ; i ++)
+	{
+		if(0 == memcmp(disk_hash->hash_bucket[index].disk_hash_node[i].fingerprint, fingerprint, FINGERPRINT_LEN))
+		{
+			memcpy(disk_hash_node, &(disk_hash->hash_bucket[index].disk_hash_node[i]), sizeof(struct disk_hash_node));
+			return 1;
+		}
+	}
+	if(disk_hash->hash_bucket[index].seg_stored_len > 0)
+	{
+		read_len = sizeof(struct disk_hash_node) * disk_hash->hash_bucket[index].seg_stored_len + sizeof(struct disk_hash_seg_header);
+		read_offset = disk_hash->hash_bucket[index].cur_seg_offset;
+	}
+	else
+	{
+		read_len = SEG_SIZE;
+		read_offset = disk_hash->hash_bucket[index].header.previous;
+	}
+	while(0XFFFFFFFFFFFFFFFF != read_offset)
+	{
+		simpleread(read_offset, disk_hash->read_seg, read_len, disk_hash->manager->f);
+		if(SEG_SIZE == read_len)
+		{
+			len = DISKHASH_PER_SEG;
+		}
+		else
+		{
+			len = disk_hash->hash_bucket[index].seg_stored_len;
+		}
+		node = (struct disk_hash_node *)(disk_hash->read_seg + sizeof(struct disk_hash_seg_header));
+		for(i = 0 ; i < len ; i ++)
+		{
+			if(0 == memcmp(node[i].fingerprint, fingerprint, FINGERPRINT_LEN))
+			{
+				memcpy(disk_hash_node, &node[i], sizeof(struct disk_hash_node));
+				return 1;
+			}
+		}
+		read_len = SEG_SIZE;
+		header = (struct disk_hash_seg_header *)disk_hash->read_seg;
+		read_offset = header->previous;
+	}
+	return 0;
+}
+
+#endif /* DISK_HASH_H_ */

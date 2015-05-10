@@ -1,0 +1,43 @@
+/*
+ * proxy-server.c
+ *
+ *  Created on: May 4, 2015
+ *      Author: mjwtom
+ */
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../include/config.h"
+#include "../include/network.h"
+
+int main(int argc, char * argv[]) {
+	short port;
+	char * recipe_filename;
+	int fd;
+	//skip the program name
+	argc --;
+	argv ++;
+
+	port = PROXY_SERVER_PORT;
+	recipe_filename = *argv;
+
+
+	argc --;
+	argv ++;
+	while(argc > 0)
+	{
+		d
+	}
+
+	fd = get_server_socket(port);
+	if(fd == -1)
+	{
+		printf("Error to get server socket");
+		return -1;
+	}
+	/*end of transfer arguments*/
+	puts("!!!Hello World!!!"); /* prints !!!Hello World!!! */
+	return EXIT_SUCCESS;
+}

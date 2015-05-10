@@ -1,0 +1,146 @@
+/*
+ * proxy-server.c
+ *
+ *  Created on: May 4, 2015
+ *      Author: mjwtom
+ */
+
+
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<errno.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#define DEFAULT_PORT 8000
+#define MAXLINE 4096
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#if 1
+#include "config.h"
+#include "network.h"
+#include "protocol.h"
+#else
+#include "../include/config.h"
+#include "../include/network.h"
+#endif
+
+int proxy(int client_fd, int dedupe_fd[], int dedupe_number, FILE* dedupe_file)
+{
+	struct msg_head head;
+	char * buf;
+	int read_size, send_size;
+	buf = malloc(MAX_BUF_SIZE);
+	if(NULL == buf)
+	{
+		printf("cannot malloc");
+		return -1;
+	}
+	while(1)
+	{
+		if((read_size = recv(client_fd, &head, sizeof(struct msg_head), 0)) < 0)
+		{
+			printf("proxy-server recv msg head error");
+			return -1;
+		}
+		if(head.type == PRO_END)
+		{
+			printf("data transfer end");
+			break;
+		}
+		if(head.type == PRO_START)
+		{
+			if((read_size = recv(client_fd, buf, sizeof(struct msg_head), 0)) < 0)
+			{
+				printf("proxy-server recv msg head error");
+				return -1;
+			}
+
+			head.type = PRO_START;
+			if((send_size = send(client_fd, &head, sizeof(struct msg_head), 0)) < 0)
+			{
+				printf("proxy-server recv msg head error");
+				return -1;
+			}
+		}
+		if(head.type == PRO_DATA)
+		{
+			if((read_size = recv(client_fd, buf, head.len, 0)) < 0)
+			{
+				printf("proxy-server recv msg head error");
+				return -1;
+			}
+			head.type = PRO_OK;
+			if((send_size = send(client_fd, &head, sizeof(struct msg_head), 0)) < 0)
+			{
+				printf("proxy-server recv msg head error");
+				return -1;
+			}
+		}
+	}
+	free(buf);
+	return 0;
+}
+
+int main(int argc, char * argv[]) {
+	short port;
+	char * recipe_filename;
+	short dedupe_server_ports[MAX_DEDUPE_NODE];
+	int dedupe_server_fds[MAX_DEDUPE_NODE];
+	int dedupe_server_number;
+	int fd, client_fd;
+	int i;
+	FILE * proxy_file;
+	//skip the program name
+	argc --;
+	argv ++;
+
+	port = PROXY_SERVER_PORT;
+	recipe_filename = *argv;
+
+	argc --;
+	argv ++;
+	i = 0;
+	while(argc > 0)
+	{
+		dedupe_server_ports[i] = atoi(*argv);
+		i ++;
+		argc --;
+		argv ++;
+	}
+	dedupe_server_number = i;
+
+	for(i = 0 ; i < dedupe_server_number ; i ++)
+	{
+		dedupe_server_fds[i] = connect_server("127.0.0.1", dedupe_server_ports[i]);
+		if(dedupe_server_fds[i] == -1)
+		{
+			printf("error connect to dedupe server\n");
+			return -1;
+		}
+	}
+
+	fd = get_server_socket(port);
+	if(fd == -1)
+	{
+		printf("Error to get server socket");
+		return -1;
+	}
+	proxy_file = fopen(recipe_filename, "a+");
+	if(NULL == proxy_file)
+	{
+		printf("error creating proxy metadata file");
+		return -1;
+	}
+	client_fd = accept_client(fd);
+	proxy(client_fd, dedupe_server_fds, dedupe_server_number, proxy_file);
+	return EXIT_SUCCESS;
+}

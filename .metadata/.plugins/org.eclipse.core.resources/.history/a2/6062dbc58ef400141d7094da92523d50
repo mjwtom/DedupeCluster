@@ -1,0 +1,13 @@
+/*
+ * chunk.c
+ *
+ *  Created on: May 5, 2015
+ *      Author: mjwtom
+ */
+
+#include "config.h"
+
+int get(struct chunk_head * head, char * chunk)
+{
+	return 0;
+}

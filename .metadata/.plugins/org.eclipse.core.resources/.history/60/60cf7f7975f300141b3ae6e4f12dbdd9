@@ -1,0 +1,42 @@
+/*
+ * proxy-server.c
+ *
+ *  Created on: May 4, 2015
+ *      Author: mjwtom
+ */
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../include/network.h"
+
+int main(int argc, char * argv[]) {
+	//skip the program name
+	argc --;
+	argv ++;
+
+	//skipe the backup option
+	argc --;
+	argv ++;
+
+	//get the ip and port
+	server_ip = *argv;
+	argc --;
+	argv ++;
+
+	port = PROXY_SERVER_PORT;
+
+	if(trans_flag == 1 || trans_flag == 0)
+		in_file = *argv;
+	else if(trans_flag == 2)
+		backup_name = *argv;
+
+	argc --;
+	argv ++;
+
+	out_file = *argv;
+	/*end of transfer arguments*/
+	puts("!!!Hello World!!!"); /* prints !!!Hello World!!! */
+	return EXIT_SUCCESS;
+}

@@ -1,0 +1,13 @@
+15:35:08 **** Incremental Build of configuration Debug for project DedupeCluster ****
+make all 
+Building file: ../src/common/network.c
+Invoking: GCC C Compiler
+gcc -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"src/common/network.d" -MT"src/common/network.d" -o "src/common/network.o" "../src/common/network.c"
+../src/common/network.c:8:20: fatal error: config.h: No such file or directory
+ #include "config.h"
+                    ^
+compilation terminated.
+make: *** [src/common/network.o] Error 1
+
+15:35:08 Build Finished (took 115ms)
+

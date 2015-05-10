@@ -1,0 +1,128 @@
+/*
+ * GPU-compress.c
+ *
+ *  Created on: 2011-7-22
+ *      Author: badboy
+ */
+
+#include "config.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <cutil_inline.h>
+#include <sys/param.h>
+
+char * gpu_data_input_c;
+char * gpu_data_output_c;
+unsigned int * gpu_data_len_c;
+unsigned int * gpu_compress_len_c;
+
+
+#define	MATCH_BITS	6
+#define	MATCH_MIN	3
+#define	MATCH_MAX	((1 << MATCH_BITS) + (MATCH_MIN - 1))
+#define	OFFSET_MASK	((1 << (16 - MATCH_BITS)) - 1)
+#define	LEMPEL_SIZE	256
+#define INPUT_BLOCKSIZE 1025
+#define OUTPUT_BLOCKSIZE 1537
+
+__device__ size_t lzjb_compress(char *s_start, char *d_start, size_t s_len, size_t d_len, int n)
+{
+	unsigned char *src = (unsigned char *)s_start;
+	unsigned char *dst = (unsigned char *)d_start;
+	unsigned char *cpy, *copymap;
+	int copymask = 1 << (NBBY - 1);
+	int mlen, offset;
+	uint16_t *hp;
+	uint16_t lempel[LEMPEL_SIZE] = { 0 };
+
+	while (src < (unsigned char *)s_start + s_len) {
+		if ((copymask <<= 1) == (1 << NBBY)) {
+			if (dst >= (unsigned char *)d_start + d_len - 1 - 2 * NBBY) {
+				if (d_len != s_len)
+					return (s_len);
+				mlen = s_len;
+				for (src = (unsigned char *)s_start, dst = (unsigned char *)d_start; mlen; mlen--)
+					*dst++ = *src++;
+				return (s_len);
+			}
+			copymask = 1;
+			copymap = dst;
+			*dst++ = 0;
+		}
+		if (src > (unsigned char *)s_start + s_len - MATCH_MAX) {
+			*dst++ = *src++;
+			continue;
+		}
+		hp = &lempel[((src[0] + 13) ^ (src[1] - 13) ^ src[2]) &
+		    (LEMPEL_SIZE - 1)];
+		offset = (intptr_t)(src - *hp) & OFFSET_MASK;
+		*hp = (uint16_t)(uintptr_t)src;
+		cpy = src - offset;
+		if (cpy >= (unsigned char *)s_start && cpy != src &&
+		    src[0] == cpy[0] && src[1] == cpy[1] && src[2] == cpy[2]) {
+			*copymap |= copymask;
+			for (mlen = MATCH_MIN; mlen < MATCH_MAX; mlen++)
+				if (src[mlen] != cpy[mlen])
+					break;
+			*dst++ = ((mlen - MATCH_MIN) << (NBBY - MATCH_BITS)) |
+			    (offset >> NBBY);
+			*dst++ = (unsigned char)offset;
+			src += mlen;
+		} else {
+			*dst++ = *src++;
+		}
+	}
+	return (dst - (unsigned char *)d_start);
+}
+
+
+__global__ void lzjb_kernel(char * input, char* output, unsigned int *data_len, unsigned int *compress_len, unsigned int chunk_len, unsigned int compress_chunk_len, unsigned int num)
+{
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if(index < num)
+	{
+		compress_len [index] = lzjb_compress( input + index * chunk_len,
+											output + index * compress_chunk_len,
+											data_len[index], compress_chunk_len, 0);
+	}
+
+}
+
+
+extern "C"
+void GPU_compress(char * input, char * output, unsigned int *data_len, unsigned int * compress_len, unsigned int chunk_len, unsigned int compress_chunk_len, unsigned int num)
+{
+
+	CUDA_SAFE_CALL(cudaMemcpy(gpu_data_input_c, input, num * chunk_len, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(gpu_data_len_c, data_len, num * sizeof(unsigned int), cudaMemcpyHostToDevice));
+
+	unsigned int blockNum = (unsigned int)ceil(num * 1.0 / 128);
+	unsigned int threadNum = 128;
+
+	dim3 grid(blockNum, 1, 1);
+	dim3 threads(threadNum, 1, 1);
+
+	lzjb_kernel<<<grid, threads>>>(gpu_data_input_c, gpu_data_output_c, gpu_data_len_c, gpu_compress_len_c, chunk_len, compress_chunk_len, num);
+	CUDA_SAFE_CALL(cudaThreadSynchronize());
+
+	CUDA_SAFE_CALL(cudaMemcpy(output, gpu_data_output_c, num * compress_chunk_len, cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(compress_len, gpu_compress_len_c, num * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+}
+
+extern "C"
+void GUP_compress_init(unsigned int chunk_len, unsigned int compress_chunk_len, unsigned int chunk_num)
+{
+	CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_data_input_c, chunk_num * chunk_len));
+	CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_data_output_c, chunk_num * compress_chunk_len));
+	CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_data_len_c, chunk_num * sizeof(unsigned int)));
+	CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_compress_len_c, chunk_num * sizeof(unsigned int)));
+}
+
+extern "C"
+void GUP_compress_destroy(void)
+{
+	CUDA_SAFE_CALL(cudaFree(gpu_data_input_c));
+	CUDA_SAFE_CALL(cudaFree(gpu_data_output_c));
+	CUDA_SAFE_CALL(cudaFree(gpu_data_len_c));
+	CUDA_SAFE_CALL(cudaFree(gpu_compress_len_c));
+}

@@ -1,0 +1,95 @@
+/*
+ * network.c
+ *
+ *  Created on: May 4, 2015
+ *      Author: mjwtom
+ */
+#if 1
+#include "config.h"
+#include "network.h"
+#include "debug.h"
+#else
+#include "../include/config.h"
+#include "../include/network.h"
+#include "../include/debug.h"
+#endif
+
+int get_server_socket(short port)
+{
+	int server_socket;
+	struct sockaddr_in server_addr;
+	bzero(&server_addr, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+
+	if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	{
+		filedebug("get socket error");
+		return -1;
+	}
+
+	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof(struct sockaddr)) == -1)
+	{
+		printf("Bind server port: %d error\n", port);
+		return -1;
+	}
+
+	if (listen(server_socket, LISTEN_QUEUE))
+	{
+		perror("Listen error\n");
+		return -1;
+	}
+	return server_socket;
+}
+
+int connect_server(char * ip, short port)
+{
+	int client_fd;
+	struct sockaddr_in server_addr;
+	/*struct sockaddr_in client_addr;
+	bzero(&client_addr,sizeof(client_addr));
+	client_addr.sin_family = AF_INET;
+	client_addr.sin_addr.s_addr = htons(INADDR_ANY);
+	client_addr.sin_port = htons(0);*/
+
+	if((client_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	{
+		perror("socket error!");
+		return -1;
+	}
+
+	/*if(bind(client_fd, (struct sockaddr*)&client_addr, sizeof(client_addr)))
+	{
+		printf("Client Bind Port Failed!\n");
+		return -1;
+	}*/
+
+	bzero(&server_addr, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+	server_addr.sin_addr.s_addr = inet_addr(ip);
+
+	if(connect(client_fd, (struct sockaddr*)&server_addr, sizeof(struct sockaddr)) == -1)
+	{
+		perror("connect error!");
+		close(client_fd);
+		return -1;
+	}
+	return client_fd;
+}
+
+int accept_client(int server_fd)
+{
+	int client_fd;
+	struct sockaddr_in client_addr;
+	bzero(&client_addr,sizeof(client_addr));
+	socklen_t sin_size = sizeof(struct sockaddr_in);
+
+	if((client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &sin_size)) == -1)
+	{
+		perror("Accept error!\n");
+		return -1;
+	}
+	return client_fd;
+}

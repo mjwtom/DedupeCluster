@@ -1,0 +1,10 @@
+#ifndef __GPU_SHA1_H__
+#define __GPU_SHA1_H__
+
+void GUP_sha1_init(unsigned int chunk_len, unsigned int chunk_num);
+
+void GUP_sha1_destroy(void);
+
+void GPU_sha1(unsigned char * input, unsigned char * output, int *data_len, unsigned int chunk_len, unsigned int num);
+
+#endif

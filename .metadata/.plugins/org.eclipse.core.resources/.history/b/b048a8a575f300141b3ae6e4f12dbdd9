@@ -1,0 +1,29 @@
+/*
+ * proxy-server.c
+ *
+ *  Created on: May 4, 2015
+ *      Author: mjwtom
+ */
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../include/network.h"
+
+int main(int argc, char * argv[]) {
+	char * server_ip;
+	//skip the program name
+	argc --;
+	argv ++;
+
+	port = PROXY_SERVER_PORT;
+
+
+	recipe_file = *argv;
+	argc --;
+	argv ++;
+	/*end of transfer arguments*/
+	puts("!!!Hello World!!!"); /* prints !!!Hello World!!! */
+	return EXIT_SUCCESS;
+}

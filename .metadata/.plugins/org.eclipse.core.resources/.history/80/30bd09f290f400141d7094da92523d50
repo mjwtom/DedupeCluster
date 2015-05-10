@@ -1,0 +1,44 @@
+/*
+ * chunk.c
+ *
+ *  Created on: May 5, 2015
+ *      Author: mjwtom
+ */
+
+#include "config.h"
+#include "chunk.h"
+#include "rabin-hash.h"
+
+int chunk_head_init(struct chunk_head * head, char * buf, int len)
+{
+	head->len = len;
+	head->data = buf;
+	return 0;
+}
+
+int get_chunk(struct chunk_head * head, char * chunk)
+{
+	int len;
+	char head_char, tail_char;
+	unsigned rabin_fp;
+	chunk = head->data;
+	if(head->len <= MIN_CHUNK_LEN)
+	{
+		return head->len;
+	}
+	rabin_fp = rabin_hash(head->data + MIN_CHUNK_LEN - WIN_LEN, WIN_LEN);
+	head->data += MIN_CHUNK_LEN;
+	head->len -= MIN_CHUNK_LEN;
+	len = MIN_CHUNK_LEN;
+	head_char = *(head->data - WIN_LEN);
+	while((len < MAX_CHUNK_LEN) && (head->len > 0))
+	{
+		if((rabin_fp % MEAN_CHUNK_LEN) == CHUNK_CDC_R)
+		{
+			return len;
+		}
+		st
+	}
+	rabin_karp(const char first, long long pre_checksum, const char last)
+	return 0;
+}

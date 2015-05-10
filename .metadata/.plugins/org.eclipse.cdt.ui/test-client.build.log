@@ -1,0 +1,28 @@
+21:06:50 **** Build of configuration Debug for project test-client ****
+make all 
+Building file: ../src/test-client.c
+Invoking: GCC C Compiler
+gcc -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"src/test-client.d" -MT"src/test-client.d" -o "src/test-client.o" "../src/test-client.c"
+../src/test-client.c: In function ‘main’:
+../src/test-client.c:37:5: warning: implicit declaration of function ‘inet_pton’ [-Wimplicit-function-declaration]
+     if( inet_pton(AF_INET, argv[1], &servaddr.sin_addr) <= 0){
+     ^
+../src/test-client.c:62:5: warning: implicit declaration of function ‘close’ [-Wimplicit-function-declaration]
+     close(sockfd);
+     ^
+../src/test-client.c:17:13: warning: unused variable ‘recvline’ [-Wunused-variable]
+     char    recvline[4096], sendline[4096];
+             ^
+../src/test-client.c:16:20: warning: unused variable ‘n’ [-Wunused-variable]
+     int    sockfd, n,rec_len;
+                    ^
+Finished building: ../src/test-client.c
+ 
+Building target: test-client
+Invoking: GCC C Linker
+gcc  -o "test-client"  ./src/test-client.o   
+Finished building target: test-client
+ 
+
+21:06:50 Build Finished (took 162ms)
+

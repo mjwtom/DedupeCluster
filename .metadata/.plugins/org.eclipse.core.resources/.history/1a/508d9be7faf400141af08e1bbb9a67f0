@@ -1,0 +1,967 @@
+/*
+ * thread.h
+ *
+ *  Created on: 2011-7-19
+ *      Author: badboy
+ */
+
+#ifndef THREAD_H_
+#define THREAD_H_
+
+#include "config.h"
+#include "sha1.h"
+#include "dedup.h"
+#include "aes.h"
+#include "GPU-compress.h"
+#include "GPU-sha1.h"
+#include "data-pool.h"
+
+#include "my-time.h"
+
+#include "chunk.h"
+
+#ifdef DEBUG
+int run_compress_thread = 0;
+int run_hash_thread = 0;
+int run_identify_thread = 0;
+int run_encrypt_thread = 0;
+int run_store_thread = 0;
+struct my_lock compress_lock;
+struct my_lock hash_lock;
+struct my_lock identify_lock;
+struct my_lock encrypt_lock;
+struct my_lock store_lock;
+#endif
+
+struct compress_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to;
+};
+
+struct hash_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to;
+};
+
+struct identify_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to;
+	struct dedup_manager * manager;
+};
+
+struct encrypt_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to;
+};
+
+struct store_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to;
+	struct dedup_manager * manager;
+};
+
+
+
+struct schedule_arg
+{
+	struct thread_header header;
+	struct node_pool * from;
+	struct node_pool * to_chunk;
+	struct node_pool * to_compress;
+	struct node_pool * to_hash;
+	struct node_pool * to_identify;
+	struct node_pool * to_encrypt;
+	struct node_pool * to_store;
+};
+
+struct pipe_dedup
+{
+	struct dedup_manager manager;
+	struct schedule_arg schedule;
+	struct store_arg store;
+	struct encrypt_arg encrypt[ENCRYPT_THREAD_NUM];
+	struct hash_arg hash[HASH_THREAD_NUM];
+	struct compress_arg compress[COMPRESS_THREAD_NUM];
+	struct identify_arg identify;
+	struct chunk_arg chunk[CHUNK_TRHEAD_NUM];
+	struct data_node node[NODE_NUM];
+	struct chunk_node chunk_node[CHUNK_NODE_NUM];
+
+	struct node_pool to_compress;
+	struct node_pool to_store;
+	struct node_pool to_encrypt;
+	struct node_pool to_hash;
+	struct node_pool to_identify;
+	struct node_pool to_schedule;
+	struct node_pool to_chunk;
+	struct chunk_pool from_rcv;
+	struct chunk_pool to_rcv;
+};
+
+
+
+/*int statute(char *buf, struct metadata * mt_data, char * dup, int len, int block_size)
+{
+	int head, tail;
+	struct metadata mt;
+	char * bf_head, * bf_tail;
+	head = 0; tail = len - 1;
+	while(tail > head)
+	{
+		while((0 == dup[head]) && (head < len))
+			head ++;
+		while((1 == dup[tail]) && (tail >= 0))
+			tail --;
+		if(head < tail)
+		{
+			bf_head = buf + (head * block_size);
+			bf_tail = buf + (tail * block_size);
+			memcpy(bf_head, bf_tail, block_size);
+			memcpy(&mt, &mt_data[head], sizeof(struct metadata));
+			memcpy(&mt_data[head], &mt_data[tail], sizeof(struct metadata));
+			memcpy(&mt_data[tail], &mt, sizeof(struct metadata));
+			dup[head] = 0;
+			dup[tail] = 1;
+		}
+	}
+	return head;
+}*/
+
+int get_unique_data(char * input_data, char * output_data, struct metadata * mt, int * data_len, char *sample, int len, int block_size)
+{
+	int count;
+	int i;
+	count = 0;
+	for(i = 0 ; i < len ; i ++)
+	{
+		if(0 == sample[i])
+		{
+			memcpy(output_data + count * block_size, input_data + i * block_size, block_size);
+			data_len[count] = mt[i].origin_len;
+			count ++;
+		}
+	}
+	return count;
+}
+
+int put_compress_data(char * input_data, char * output_data, struct metadata * mt, int * compressed_len, char * sample, int len, int block_size)
+{
+	int count;
+	int i;
+	count = 0;
+	for(i = 0 ; i < len ; i ++)
+	{
+		if(0 == sample[i])
+		{
+			memcpy(output_data + i * block_size, input_data + count * block_size, block_size);
+			mt[i].len = compressed_len[count];
+			count ++;
+		}
+	}
+	return 0;
+}
+
+void * compress_thread(void * arg)
+{
+	struct compress_arg * compress_arg;
+	int * go_on;
+	int len;
+	struct node_pool * from;
+	struct node_pool * to;
+	struct data_node * data_node;
+	int i;
+
+#ifdef DEBUG
+	int mylen;
+	struct timeval start, end;
+#endif
+
+
+#ifdef GPU
+	int ret;
+	int *data_len = malloc (sizeof(int) * BATCH_NUM);
+	int *compressed_len = malloc(sizeof(int) * BATCH_NUM);
+	GUP_compress_init(MAX_CHUNK_LEN, MAX_COMPRESS_LEN, BATCH_NUM);
+	char * unique_data = malloc(BATCH_NUM * MAX_CHUNK_LEN);
+	char * compress_data = malloc(BATCH_NUM * MAX_COMPRESS_LEN);
+#endif
+
+	compress_arg = (struct compress_arg *)arg;
+	go_on = &(compress_arg->header.go_on);
+	from = compress_arg->from;
+	to = compress_arg->to;
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+#ifdef DEBUG
+		printf("in_compress_from buf %d\n", mylen);
+		mylock(&compress_lock);
+		run_compress_thread ++;
+		myunlock(&compress_lock);
+//		puts("compress");
+//		printf("my thread id is %ld\n", compress_arg->header.id);
+		gettimeofday(&start, NULL);
+#endif
+		data_node->calculate_type = COMPRESS_THREAD;
+		switch(data_node->line_type)
+		{
+		case LINE_TYPE_CHIE:
+#ifdef GPU
+			for(i = 0 ; i < data_node->data_len; i ++)
+			{
+				data_len[i] = data_node->metadata[i].origin_len;
+			}
+	//		puts("before gpu compress");
+			GPU_compress(data_node->data, data_node->compress_data, data_len, compressed_len, MAX_CHUNK_LEN, MAX_COMPRESS_LEN, data_node->data_len);
+	//		puts("after gpu compress");
+			for(i = 0 ; i < data_node->data_len; i ++)
+			{
+				data_node->metadata[i].len = compressed_len[i];
+			}
+#else
+			len = data_node->data_len;
+			for(i = 0 ; i < len ; i ++)
+			{
+				data_node->metadata[i].len = lzjb_compress(data_node->data + i * MAX_CHUNK_LEN,
+						data_node->compress_data + i * MAX_COMPRESS_LEN,
+						data_node->metadata[i].origin_len,
+						MAX_COMPRESS_LEN,
+						0);
+			}
+#endif
+			break;
+		case LINE_TYPE_HICE:
+#ifdef GPU
+//			ret = statute(data_node->data, data_node->metadata, data_node->dup_sample, data_node->data_len, MAX_CHUNK_LEN);
+			ret = get_unique_data(data_node->data, unique_data, data_node->metadata, data_len, data_node->dup_sample, data_node->data_len, MAX_CHUNK_LEN);
+//			for(i = 0 ; i < ret; i ++)
+//			{
+//				data_len[i] = data_node->metadata[i].origin_len;
+//			}
+	//		puts("before gpu compress");
+			GPU_compress(unique_data, compress_data, data_len, compressed_len, MAX_CHUNK_LEN, MAX_COMPRESS_LEN, ret);
+	//		puts("after gpu compress");
+//			for(i = 0 ; i < ret; i ++)
+//			{
+//				data_node->metadata[i].len = c_len[i];
+//			}
+			put_compress_data(compress_data, data_node->compress_data, data_node->metadata, compressed_len, data_node->dup_sample, data_node->data_len, MAX_COMPRESS_LEN);
+#else
+			len = data_node->data_len;
+			for(i = 0 ; i < len ; i ++)
+			{
+				if(0 == data_node->dup_sample[i])
+				{
+					data_node->metadata[i].len = lzjb_compress(data_node->data + i * MAX_CHUNK_LEN,
+							data_node->compress_data + i * MAX_COMPRESS_LEN,
+							data_node->metadata[i].origin_len,
+							MAX_COMPRESS_LEN,
+							0);
+				}
+			}
+#endif
+			break;
+		default:
+			break;
+		}
+#ifdef DEBUG
+		gettimeofday(&end, NULL);
+		data_node->time_used = td(&start, &end);
+		mylock(&compress_lock);
+		run_compress_thread --;
+		myunlock(&compress_lock);
+#endif
+		put_data_node(to, data_node);
+//		puts("end compress");
+	}
+#ifdef GPU
+	GUP_compress_destroy();
+	free(data_len);
+	free(compressed_len);
+	free(unique_data);
+	free(compress_data);
+#endif
+	return NULL;
+}
+
+void * hash_thread(void * arg)
+{
+	struct hash_arg * hash_arg;
+	struct data_node * data_node;
+	int * go_on;
+	int len;
+	struct node_pool * from;
+	struct node_pool * to;
+	int i;
+
+//	FILE * hash_file;
+
+//	hash_file = fopen("/home/mjw/fingerprint", "wb");
+
+#ifdef DEBUG
+	int mylen;
+	struct timeval start, end;
+#endif
+
+	hash_arg = (struct hash_arg *) arg;
+	go_on = &(hash_arg->header.go_on);
+	from = hash_arg->from;
+	to = hash_arg->to;
+#ifdef GPU
+	char * sha1_buf = malloc(BATCH_NUM * FINGERPRINT_LEN);
+	int * data_len = malloc(BATCH_NUM * sizeof(int));
+	GPU_sha1_init(MAX_COMPRESS_LEN, BATCH_NUM);
+#endif
+
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+#ifdef DEBUG
+//		puts("hash");
+		printf("in_hash_from buf %d\n", mylen);
+		mylock(&hash_lock);
+		run_hash_thread ++;
+		myunlock(&hash_lock);
+		gettimeofday(&start, NULL);
+#endif
+		data_node->calculate_type = HASH_THREAD;
+		len = data_node->data_len;
+		switch(data_node->line_type)
+		{
+		case LINE_TYPE_CHIE:
+#ifdef GPU
+			for(i = 0 ; i < data_node->data_len ; i ++)
+			{
+				data_len[i] = data_node->metadata[i].len;
+			}
+			GPU_sha1(data_node->compress_data, sha1_buf, data_len, MAX_COMPRESS_LEN, data_node->data_len);
+			for(i = 0 ; i < data_node->data_len ; i ++)
+			{
+				memcpy(data_node->metadata[i].fingerprint, sha1_buf + i * FINGERPRINT_LEN, FINGERPRINT_LEN);
+			}
+#else
+
+			for(i = 0 ; i < len ; i ++)
+			{
+				sha1(data_node->compress_data + i * MAX_COMPRESS_LEN,
+						data_node->metadata[i].len,
+						data_node->metadata[i].fingerprint);
+//				fwrite(data_node->metadata[i].fingerprint,20,1,hash_file);
+			}
+#endif
+			break;
+
+		case LINE_TYPE_HICE:
+#ifdef GPU
+			for(i = 0 ; i < data_node->data_len ; i ++)
+			{
+				data_len[i] = data_node->metadata[i].origin_len;
+			}
+			GPU_sha1(data_node->data, sha1_buf, data_len, MAX_CHUNK_LEN, data_node->data_len);
+			for(i = 0 ; i < data_node->data_len ; i ++)
+			{
+				memcpy(data_node->metadata[i].fingerprint, sha1_buf + i * FINGERPRINT_LEN, FINGERPRINT_LEN);
+			}
+#else
+
+			for(i = 0 ; i < len ; i ++)
+			{
+				sha1(data_node->data + i * MAX_CHUNK_LEN,
+						data_node->metadata[i].origin_len,
+						data_node->metadata[i].fingerprint);
+			}
+#endif
+			break;
+		default:
+			break;
+		}
+#ifdef DEBUG
+		gettimeofday(&end, NULL);
+		data_node->time_used = td(&start, &end);
+		mylock(&hash_lock);
+		run_hash_thread --;
+		myunlock(&hash_lock);
+#endif
+		put_data_node(to, data_node);
+	}
+#ifdef GPU
+	GPU_sha1_destroy();
+	free(sha1_buf);
+	free(data_len);
+#endif
+	return NULL;
+}
+
+
+void * identify_thread(void * arg)
+{
+	struct identify_arg * identify_arg;
+	struct data_node * data_node;
+	int * go_on;
+	int len;
+	struct node_pool * from;
+	struct node_pool * to;
+	struct dedup_manager * manager;
+	int i;
+
+#ifdef DEBUG
+//	static int id = 0;
+	int mylen;
+	struct timeval start, end;
+#endif
+
+	identify_arg = (struct identify_arg *) arg;
+	go_on = &(identify_arg->header.go_on);
+	from = identify_arg->from;
+	to = identify_arg->to;
+	manager = identify_arg->manager;
+
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+#ifdef DEBUG
+//		puts("identify");
+//		data_node = get_node_by_id(from, id);
+//		id ++;
+		printf("in_identify_from buf %d\n", mylen);
+		mylock(&identify_lock);
+		run_identify_thread ++;
+		myunlock(&identify_lock);
+		gettimeofday(&start, NULL);
+#endif
+		data_node->calculate_type = IDENTIFY_THREAD;
+		len = data_node->data_len;
+		for(i = 0 ; i < len ; i ++)
+		{
+			data_node->dup_sample[i] = is_dedup(&data_node->metadata[i], manager);
+		}
+#ifdef DEBUG
+		gettimeofday(&end, NULL);
+		data_node->time_used = td(&start, &end);
+		mylock(&identify_lock);
+		run_identify_thread --;
+		myunlock(&identify_lock);
+#endif
+		put_data_node(to, data_node);
+	}
+
+	return NULL;
+}
+
+void * store_thread(void * arg)
+{
+	struct store_arg * store_arg;
+	struct data_node * data_node;
+	int * go_on;
+	int len;
+	struct node_pool * from;
+	struct node_pool * to;
+	struct dedup_manager * manager;
+	int i;
+//	uint64_t mt_counter = 0;
+	uint64_t mt_offset;
+
+#ifdef DEBUG
+//	static int32_t id = 0;
+	int mylen;
+	struct timeval start, end;
+#endif
+
+	struct disk_hash_node disk_hash_node;
+
+	store_arg = (struct store_arg *) arg;
+	go_on = &(store_arg->header.go_on);
+	from = store_arg->from;
+	to = store_arg->to;
+	manager = store_arg->manager;
+
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+#ifdef DEBUG
+//		puts("store thread");
+//		data_node = get_node_by_id(from, id);
+//		id ++;
+		printf("in_store_from buf %d\n", mylen);
+		mylock(&store_lock);
+		run_store_thread ++;
+		myunlock(&store_lock);
+		gettimeofday(&start, NULL);
+#endif
+		data_node->calculate_type = STORE_THREAD;
+		len = data_node->data_len;
+		for(i = 0 ; i < len ; i ++)
+		{
+			if(0 == data_node->dup_sample[i])
+			{
+				data_node->metadata[i].offset = add_data(data_node->compress_data + i * MAX_COMPRESS_LEN, data_node->metadata[i].len, &manager->dt_seg);
+				memcpy(disk_hash_node.fingerprint, data_node->metadata[i].fingerprint, FINGERPRINT_LEN);
+				disk_hash_node.data_len = data_node->metadata[i].len;
+				disk_hash_node.data_offset = data_node->metadata[i].offset;
+				mt_offset = add_metadata(data_node->metadata[i], &manager->mt_seg);
+				disk_hash_node.mtdata_offset = mt_offset;
+				add_2_disk_hash(&manager->disk_hash, disk_hash_node);
+#ifdef DEBUG
+				data_len += data_node->metadata[i].origin_len;
+				compress_len += data_node->metadata[i].len;
+				unique_len += data_node->metadata[i].origin_len;
+#endif
+			}
+			else
+			{
+				mt_offset = add_metadata(data_node->metadata[i], &manager->mt_seg);
+//				printf("dup chunk %d\n", mt_counter);
+#ifdef DEBUG
+				data_len += data_node->metadata[i].origin_len;
+				dup_len += data_node->metadata[i].origin_len;
+#endif
+			}
+//			if(0 == manager->ready)
+//			{
+//				if(mt_counter == manager->mt_count)
+//				{
+//					manager->mt_offset = mt_offset;
+//					manager->ready = 1;
+//				}
+//			}
+//			mt_counter ++;
+		}
+#ifdef DEBUG
+		gettimeofday(&end, NULL);
+		data_node->time_used = td(&start, &end);
+		mylock(&store_lock);
+		run_store_thread --;
+		myunlock(&store_lock);
+#endif
+		put_data_node(to, data_node);
+	}
+
+	return NULL;
+}
+
+
+void * encrypt_thread(void * arg)
+{
+	struct encrypt_arg * encrypt_arg;
+	struct data_node * data_node;
+	int * go_on;
+	int len;
+	struct node_pool * from;
+	struct node_pool * to;
+	int i;
+
+	//for aes encrypt
+	char *key = "1234567890abcdef";
+	char iv[16] = {0};
+	aes_context actx;
+
+#ifdef DEBUG
+	int mylen;
+	struct timeval start, end;
+#endif
+
+	encrypt_arg = (struct encrypt_arg *) arg;
+	go_on = &(encrypt_arg->header.go_on);
+	from = encrypt_arg->from;
+	to = encrypt_arg->to;
+
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+#ifdef DEBUG
+//		puts("encrypt");
+		printf("in_encrypt_from buf %d\n", mylen);
+		mylock(&encrypt_lock);
+		run_encrypt_thread ++;
+		myunlock(&encrypt_lock);
+		gettimeofday(&start, NULL);
+#endif
+		data_node->calculate_type = ENCRYPT_THREAD;
+		len = data_node->data_len;
+		for(i = 0 ; i < len ; i ++)
+		{
+			if(0 == data_node->dup_sample[i])
+			{
+				aes_setkey_enc(&actx, key, 128);
+				memset(iv, 0 ,16);
+				aes_crypt_cbc(&actx, AES_ENCRYPT, data_node->metadata[i].len/16*16, iv, data_node->compress_data + i * MAX_COMPRESS_LEN, data_node->compress_data + i * MAX_COMPRESS_LEN);
+			}
+		}
+#ifdef DEBUG
+		gettimeofday(&end, NULL);
+		data_node->time_used = td(&start, &end);
+		mylock(&encrypt_lock);
+		run_encrypt_thread --;
+		myunlock(&encrypt_lock);
+#endif
+		put_data_node(to, data_node);
+	}
+	return NULL;
+}
+
+//with aes encrypt
+void * schedule_thread(void * arg)
+{
+	struct schedule_arg * schedule_arg;
+	struct data_node * data_node;
+	int * go_on;
+	struct node_pool * from;
+	struct node_pool * to_chunk;
+	struct node_pool * to_compress;
+	struct node_pool * to_hash;
+	struct node_pool * to_identify;
+	struct node_pool * to_encrypt;
+	struct node_pool * to_store;
+
+	schedule_arg = (struct schedule_arg *) arg;
+	go_on = &(schedule_arg->header.go_on);
+	from = schedule_arg->from;
+	to_chunk = schedule_arg->to_chunk;
+	to_compress = schedule_arg->to_compress;
+	to_hash = schedule_arg->to_hash;
+	to_identify = schedule_arg->to_identify;
+	to_encrypt= schedule_arg->to_encrypt;
+	to_store = schedule_arg->to_store;
+
+#ifdef DEBUG
+	int mylen;
+#endif
+
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+#ifdef DEBUG
+		printf("in pool len %d\n", mylen);
+		mylock(&compress_lock);
+		printf("running compress_thread is %d\n", run_compress_thread);
+		myunlock(&compress_lock);
+
+		mylock(&hash_lock);
+		printf("running hash_thread is %d\n", run_hash_thread);
+		myunlock(&hash_lock);
+
+		mylock(&identify_lock);
+		printf("running identify_thread is %d\n", run_identify_thread);
+		myunlock(&identify_lock);
+
+		mylock(&encrypt_lock);
+		printf("running encrypt_thread is %d\n", run_encrypt_thread);
+		myunlock(&encrypt_lock);
+
+		mylock(&store_lock);
+		printf("running store_thread is %d\n", run_store_thread);
+		myunlock(&store_lock);
+
+		mylock(&chunk_lock);
+		printf("running chunk_thread is %d\n", run_chunk_thread);
+		myunlock(&chunk_lock);
+#endif
+		switch(data_node->calculate_type)
+		{
+		case CHUNK_THREAD:
+#ifdef DEBUG
+			chunk_time += data_node->time_used;
+#endif
+			switch(data_node->line_type)
+			{
+			case LINE_TYPE_CHIE:
+				put_data_node(to_compress, data_node);
+				break;
+			case LINE_TYPE_HICE:
+				put_data_node(to_hash, data_node);
+				break;
+			default:
+				break;
+			}
+			break;
+		case COMPRESS_THREAD:
+#ifdef DEBUG
+			compress_time += data_node->time_used;
+#endif
+			switch(data_node->line_type)
+			{
+			case LINE_TYPE_CHIE:
+				put_data_node(to_hash, data_node);
+				break;
+			case LINE_TYPE_HICE:
+				put_data_node(to_encrypt, data_node);
+				break;
+			default:
+				break;
+			}
+			break;
+		case HASH_THREAD:
+#ifdef DEBUG
+			hash_time += data_node->time_used;
+#endif
+			put_data_node(to_identify, data_node);
+			break;
+		case IDENTIFY_THREAD:
+#ifdef DEBUG
+			identify_time += data_node->time_used;
+#endif
+			switch(data_node->line_type)
+			{
+			case LINE_TYPE_CHIE:
+				put_data_node(to_encrypt, data_node);
+				break;
+			case LINE_TYPE_HICE:
+				put_data_node(to_compress, data_node);
+				break;
+			default:
+				break;
+			}
+			break;
+		case ENCRYPT_THREAD:
+#ifdef DEBUG
+			encrypt_time += data_node->time_used;
+#endif
+			put_data_node(to_store, data_node);
+			break;
+		case STORE_THREAD:
+#ifdef DEBUG
+			store_time += data_node->time_used;
+#endif
+			put_data_node(to_chunk, data_node);
+			break;
+		default:
+			put_data_node(from, data_node);
+			break;
+		}
+	}
+	return NULL;
+}
+
+void * schedule_thread_noencrypt(void * arg)
+{
+	struct schedule_arg * schedule_arg;
+	struct data_node * data_node;
+	int * go_on;
+	struct node_pool * from;
+	struct node_pool * to_chunk;
+	struct node_pool * to_compress;
+	struct node_pool * to_hash;
+	struct node_pool * to_identify;
+	struct node_pool * to_encrypt;
+	struct node_pool * to_store;
+
+	schedule_arg = (struct schedule_arg *) arg;
+	go_on = &(schedule_arg->header.go_on);
+	from = schedule_arg->from;
+	to_chunk = schedule_arg->to_chunk;
+	to_compress = schedule_arg->to_compress;
+	to_hash = schedule_arg->to_hash;
+	to_identify = schedule_arg->to_identify;
+	to_encrypt= schedule_arg->to_encrypt;
+	to_store = schedule_arg->to_store;
+
+#ifdef DEBUG
+	int mylen;
+#endif
+
+	while(*go_on)
+	{
+		data_node = get_data_node(from, &mylen);
+		printf("in pool len %d\n", mylen);
+		switch(data_node->calculate_type)
+		{
+		case CHUNK_THREAD:
+#ifdef DEBUG
+			chunk_time += data_node->time_used;
+#endif
+			switch(data_node->line_type)
+			{
+			case LINE_TYPE_CHIE:
+				put_data_node(to_compress, data_node);
+				break;
+			case LINE_TYPE_HICE:
+				put_data_node(to_hash, data_node);
+				break;
+			default:
+				break;
+			}
+			break;
+		case COMPRESS_THREAD:
+#ifdef DEBUG
+			compress_time += data_node->time_used;
+#endif
+			switch(data_node->line_type)
+			{
+			case LINE_TYPE_CHIE:
+				put_data_node(to_hash, data_node);
+				break;
+			case LINE_TYPE_HICE:
+				put_data_node(to_store, data_node);
+				break;
+			default:
+				break;
+			}
+			break;
+		case HASH_THREAD:
+#ifdef DEBUG
+			hash_time += data_node->time_used;
+#endif
+			put_data_node(to_identify, data_node);
+			break;
+		case IDENTIFY_THREAD:
+#ifdef DEBUG
+			identify_time += data_node->time_used;
+#endif
+			switch(data_node->line_type)
+			{
+			case LINE_TYPE_CHIE:
+				put_data_node(to_store, data_node);
+				break;
+			case LINE_TYPE_HICE:
+				put_data_node(to_compress, data_node);
+				break;
+			default:
+				break;
+			}
+			break;
+		case ENCRYPT_THREAD:
+#ifdef DEBUG
+			encrypt_time += data_node->time_used;
+#endif
+			put_data_node(to_store, data_node);
+			break;
+		case STORE_THREAD:
+#ifdef DEBUG
+			store_time += data_node->time_used;
+#endif
+			put_data_node(to_chunk, data_node);
+			break;
+		default:
+			put_data_node(from, data_node);
+			break;
+		}
+	}
+	return NULL;
+}
+
+int pipe_dedup_init(struct pipe_dedup *p_d, char * name)
+{
+	int i;
+	dedup_init(&p_d->manager, name);
+	pool_init(&p_d->to_compress);
+	pool_init(&p_d->to_encrypt);
+	pool_init(&p_d->to_hash);
+	pool_init(&p_d->to_identify);
+	pool_init(&p_d->to_store);
+	pool_init(&p_d->to_schedule);
+	pool_init(&p_d->to_chunk);
+
+	chunk_pool_init(&p_d->from_rcv);
+	chunk_pool_init(&p_d->to_rcv);
+
+	for(i = 0 ; i < COMPRESS_THREAD_NUM ; i ++)
+	{
+		p_d->compress[i].from = &p_d->to_compress;
+		p_d->compress[i].to = &p_d->to_schedule;
+		p_d->compress[i].header.go_on = 1;
+	}
+
+	for(i = 0 ; i < ENCRYPT_THREAD_NUM ; i ++)
+	{
+		p_d->encrypt[i].from = &p_d->to_encrypt;
+		p_d->encrypt[i].to = &p_d->to_schedule;
+		p_d->encrypt[i].header.go_on = 1;
+	}
+
+	for(i = 0 ; i < HASH_THREAD_NUM ; i ++)
+	{
+		p_d->hash[i].from = &p_d->to_hash;
+		p_d->hash[i].to = &p_d->to_schedule;
+		p_d->hash[i].header.go_on = 1;
+	}
+
+	for(i = 0 ; i < CHUNK_TRHEAD_NUM ; i ++)
+	{
+		p_d->chunk[i].from = &p_d->to_chunk;
+		p_d->chunk[i].to = &p_d->to_schedule;
+		p_d->chunk[i].from_rcv = &p_d->from_rcv;
+		p_d->chunk[i].to_rcv = &p_d->to_rcv;
+		p_d->chunk[i].header.go_on = 1;
+
+	}
+
+	p_d->identify.from = &p_d->to_identify;
+	p_d->identify.to = &p_d->to_schedule;
+
+	p_d->store.from = &p_d->to_store;
+	p_d->store.to = &p_d->to_schedule;
+
+	p_d->schedule.from = &p_d->to_schedule;
+	p_d->schedule.to_chunk = &p_d->to_chunk;
+	p_d->schedule.to_compress = &p_d->to_compress;
+	p_d->schedule.to_encrypt = &p_d->to_encrypt;
+	p_d->schedule.to_hash = &p_d->to_hash;
+	p_d->schedule.to_identify = &p_d->to_identify;
+	p_d->schedule.to_store = &p_d->to_store;
+
+	p_d->identify.manager = &p_d->manager;
+	p_d->store.manager = &p_d->manager;
+
+	p_d->schedule.header.go_on = 1;
+	p_d->store.header.go_on = 1;
+	p_d->identify.header.go_on = 1;
+
+
+	for(i = 0;  i < NODE_NUM ; i ++)
+	{
+		put_data_node(&p_d->to_chunk, &p_d->node[i]);
+	}
+	for(i = 0 ; i < CHUNK_NODE_NUM ; i ++)
+	{
+		put_chunk_data_node(&p_d->to_rcv, &p_d->chunk_node[i]);
+	}
+	return 0;
+}
+
+int start_threads(struct pipe_dedup * p_d)
+{
+	int i;
+	for(i = 0 ; i < CHUNK_TRHEAD_NUM ; i ++)
+	{
+#ifdef FIXED_CHUNK
+		pthread_create(&p_d->chunk[i].header.id, NULL, fixed_chunk_thread, &p_d->chunk[i]);
+#else
+		pthread_create(&p_d->chunk[i].header.id, NULL, chunk_thread, &p_d->chunk[i]);
+#endif
+	}
+
+	for(i = 0 ; i < COMPRESS_THREAD_NUM ; i ++)
+	{
+		pthread_create(&p_d->compress[i].header.id, NULL, compress_thread, &p_d->compress[i]);
+	}
+
+	for(i = 0 ; i < ENCRYPT_THREAD_NUM ; i ++)
+	{
+		pthread_create(&p_d->encrypt[i].header.id, NULL, encrypt_thread, &p_d->encrypt[i]);
+	}
+
+	for(i = 0 ; i < HASH_THREAD_NUM ; i ++)
+	{
+		pthread_create(&p_d->hash[i].header.id, NULL, hash_thread, &p_d->hash[i]);
+	}
+	pthread_create(&p_d->identify.header.id, NULL, identify_thread, &p_d->identify);
+#ifdef NO_ENCRYPT
+	pthread_create(&p_d->schedule.header.id, NULL, schedule_thread_noencrypt, &p_d->schedule);
+#else
+	pthread_create(&p_d->schedule.header.id, NULL, schedule_thread, &p_d->schedule);
+#endif
+	pthread_create(&p_d->store.header.id, NULL, store_thread, &p_d->store);
+	return 0;
+}
+
+#endif /* THREAD_H_ */

@@ -1,0 +1,315 @@
+01:05:49 **** Incremental Build of configuration Debug for project dedupe-server ****
+make all 
+Building file: ../src/dedupe-server.c
+Invoking: GCC C Compiler
+gcc -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"src/dedupe-server.d" -MT"src/dedupe-server.d" -o "src/dedupe-server.o" "../src/dedupe-server.c"
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h: In function ‘add_2_file’:
+../src/file.h:60:61: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+   simplewrite(write_offset, &(f_seg->header), sizeof(struct file_seg_header), f_seg->manager->f);
+                                                             ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:31:83: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+ #define FILE_PER_SEG ((SEG_SIZE - sizeof(struct file_seg_header)) / sizeof(struct file))
+                                                                                   ^
+../src/file.h:63:64: note: in expansion of macro ‘FILE_PER_SEG’
+   simplewrite(write_offset, f_seg->file, sizeof(struct file) * FILE_PER_SEG, f_seg->manager->f);
+                                                                ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h: In function ‘get_files’:
+../src/file.h:87:60: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+    simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager->f);
+                                                            ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:88:50: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+    simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager->f);
+                                                  ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:119:61: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager->f);
+                                                             ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:120:51: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager->f);
+                                                   ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:130:52: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(read_offset, f, len * sizeof(struct file), f_seg->manager->f);
+                                                    ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:146:62: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+      simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager->f);
+                                                              ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:147:52: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+      simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager->f);
+                                                    ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:12:0,
+                 from ../src/dedupe-server.c:18:
+../src/file.h:156:53: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+      simpleread(read_offset, f, len * sizeof(struct file), f_seg->manager->f);
+                                                     ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:13:0,
+                 from ../src/dedupe-server.c:18:
+../src/disk-hash.h: In function ‘disk_hash_init’:
+../src/disk-hash.h:61:104: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+   simplewrite(disk_hash->hash_bucket[i].write_offset, &disk_hash->hash_bucket[i].header, sizeof(struct disk_hash_seg_header), disk_hash->manager->f);
+                                                                                                        ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:13:0,
+                 from ../src/dedupe-server.c:18:
+../src/disk-hash.h: In function ‘add_2_disk_hash’:
+../src/disk-hash.h:89:152: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+     simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_store_len * sizeof(struct disk_hash_node), disk_hash->manager->f);
+                                                                                                                                                        ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:13:0,
+                 from ../src/dedupe-server.c:18:
+../src/disk-hash.h:98:150: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+     simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_seg_len * sizeof(struct disk_hash_node), disk_hash->manager->f);
+                                                                                                                                                      ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:13:0,
+                 from ../src/dedupe-server.c:18:
+../src/disk-hash.h:103:114: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+     simplewrite(disk_hash->hash_bucket[index].write_offset, &disk_hash->hash_bucket[index].header, sizeof(struct disk_hash_seg_header), disk_hash->manager->f);
+                                                                                                                  ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:13:0,
+                 from ../src/dedupe-server.c:18:
+../src/disk-hash.h: In function ‘lookup_fingerprint_in_disk_hash’:
+../src/disk-hash.h:156:3: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+   simpleread(read_offset, disk_hash->read_seg, read_len, disk_hash->manager->f);
+   ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/cache.h:14:0,
+                 from ../src/dedupe.h:14,
+                 from ../src/dedupe-server.c:18:
+../src/metadata.h: In function ‘add_metadata’:
+../src/metadata.h:59:60: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+   simplewrite(write_offset, &mt_seg->header, sizeof(struct mtdata_seg_header), mt_seg->manager->f);
+                                                            ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/cache.h:14:0,
+                 from ../src/dedupe.h:14,
+                 from ../src/dedupe-server.c:18:
+../src/metadata.h:61:80: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+   simplewrite(write_offset, mt_seg->mtdata, MTDATA_PER_SEGMENT * sizeof(struct metadata), mt_seg->manager->f);
+                                                                                ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/cache.h:14:0,
+                 from ../src/dedupe.h:14,
+                 from ../src/dedupe-server.c:18:
+../src/metadata.h: In function ‘get_metadata’:
+../src/metadata.h:103:52: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(offset, mtdata, len * sizeof(struct metadata), mt_seg->manager->f);
+                                                    ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/cache.h:14:0,
+                 from ../src/dedupe.h:14,
+                 from ../src/dedupe-server.c:18:
+../src/metadata.h:109:53: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(offset, mtdata, left * sizeof(struct metadata), mt_seg->manager->f);
+                                                     ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/cache.h:14:0,
+                 from ../src/dedupe.h:14,
+                 from ../src/dedupe-server.c:18:
+../src/metadata.h:113:51: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(seg_offset, &header, sizeof(struct mtdata_seg_header), mt_seg->manager->f);
+                                                   ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:15:0,
+                 from ../src/dedupe-server.c:18:
+../src/data.h: In function ‘add_data’:
+../src/data.h:65:61: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+    simplewrite(write_offset, &dt_seg->header, sizeof(struct data_seg_header), dt_seg->manager->f);
+                                                             ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:15:0,
+                 from ../src/dedupe-server.c:18:
+../src/data.h:67:4: warning: passing argument 4 of ‘simplewrite’ from incompatible pointer type [enabled by default]
+    simplewrite(write_offset, dt_seg->data, dt_seg->len, dt_seg->manager->f);
+    ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:125:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simplewrite(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:15:0,
+                 from ../src/dedupe-server.c:18:
+../src/data.h: In function ‘get_data’:
+../src/data.h:104:5: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(offset, buf, len, dt_seg->manager->f);
+     ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:15:0,
+                 from ../src/dedupe-server.c:18:
+../src/data.h:110:5: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(offset, buf, left_seg, dt_seg->manager->f);
+     ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+In file included from ../src/dedupe.h:15:0,
+                 from ../src/dedupe-server.c:18:
+../src/data.h:113:51: warning: passing argument 4 of ‘simpleread’ from incompatible pointer type [enabled by default]
+     simpleread(seg_offset, &header, sizeof(struct data_seg_header), dt_seg->manager->f);
+                                                   ^
+In file included from ../src/file.h:14:0,
+                 from ../src/dedupe.h:12,
+                 from ../src/dedupe-server.c:18:
+../src/storage-manager.h:98:5: note: expected ‘struct storage_manager *’ but argument is of type ‘struct FILE *’
+ int simpleread(uint64_t a, void *buf, size_t len, struct storage_manager * manager)
+     ^
+../src/dedupe-server.c: In function ‘write_file’:
+../src/dedupe-server.c:52:6: warning: variable ‘uncom_len’ set but not used [-Wunused-but-set-variable]
+  int uncom_len;
+      ^
+../src/dedupe-server.c: In function ‘main2’:
+../src/dedupe-server.c:132:42: warning: ‘ret’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+    dedup->f_seg.file[file_pos].chunk_num = ret;
+                                          ^
+Finished building: ../src/dedupe-server.c
+ 
+Building target: dedupe-server
+Invoking: GCC C Linker
+gcc  -o "dedupe-server"  ./src/debug.o ./src/dedupe-server.o ./src/network.o   
+Finished building target: dedupe-server
+ 
+
+01:05:50 Build Finished (took 792ms)
+

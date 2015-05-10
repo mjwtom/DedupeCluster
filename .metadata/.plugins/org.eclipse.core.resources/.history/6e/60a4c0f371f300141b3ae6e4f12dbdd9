@@ -1,0 +1,19 @@
+/*
+ * network.h
+ *
+ *  Created on: May 4, 2015
+ *      Author: mjwtom
+ */
+
+#ifndef INCLUDE_NETWORK_H_
+#define INCLUDE_NETWORK_H_
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#include "config.h"
+
+int connect_server(char * ip, short port);
+int get_server_socket(short port);
+
+#endif /* INCLUDE_NETWORK_H_ */

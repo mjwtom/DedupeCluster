@@ -1,0 +1,15 @@
+/*
+ * GPU-aes.h
+ *
+ *  Created on: Nov 24, 2012
+ *      Author: badboy
+ */
+
+#ifndef GPU_AES_H_
+#define GPU_AES_H_
+
+extern void GPU_aes(char * input, char * output, unsigned int *data_len, unsigned int chunk_len, unsigned int num);
+extern void GUP_aes_init(unsigned int chunk_len, unsigned int chunk_num);
+extern void GUP_aes_destroy(void);
+
+#endif /* GPU_AES_H_ */

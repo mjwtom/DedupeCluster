@@ -1,0 +1,15 @@
+/*
+ * GPU-compress.h
+ *
+ *  Created on: 2011-7-22
+ *      Author: badboy
+ */
+
+#ifndef GPU_COMPRESS_H_
+#define GPU_COMPRESS_H_
+
+extern void GPU_compress(char * input, char * output, unsigned int *data_len, unsigned int * compress_len, unsigned int chunk_len, unsigned int compress_chunk_len, unsigned int num);
+extern void GUP_compress_init(unsigned int chunk_len, unsigned int compress_chunk_len, unsigned int chunk_num);
+extern void GUP_compress_destroy(void);
+
+#endif /* GPU_COMPRESS_H_ */
