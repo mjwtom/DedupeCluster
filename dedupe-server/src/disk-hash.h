@@ -58,7 +58,7 @@ int disk_hash_init(struct disk_hash * disk_hash)
 		disk_hash->hash_bucket[i].len = 0;
 		disk_hash->hash_bucket[i].cur_seg_offset = get_new_seg(disk_hash->manager);
 		disk_hash->hash_bucket[i].write_offset = disk_hash->hash_bucket[i].cur_seg_offset;
-		simplewrite(disk_hash->hash_bucket[i].write_offset, &disk_hash->hash_bucket[i].header, sizeof(struct disk_hash_seg_header), disk_hash->manager->f);
+		simplewrite(disk_hash->hash_bucket[i].write_offset, &disk_hash->hash_bucket[i].header, sizeof(struct disk_hash_seg_header), disk_hash->manager);
 		disk_hash->hash_bucket[i].write_offset += sizeof(struct disk_hash_seg_header);
 	}
 	return 0;
@@ -86,7 +86,7 @@ int add_2_disk_hash(struct disk_hash * disk_hash, struct disk_hash_node disk_has
 			left_seg_len = DISKHASH_PER_SEG - disk_hash->hash_bucket[index].seg_stored_len;
 			if(left_seg_len > left_store_len)
 			{
-				simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_store_len * sizeof(struct disk_hash_node), disk_hash->manager->f);
+				simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_store_len * sizeof(struct disk_hash_node), disk_hash->manager);
 				disk_hash->hash_bucket[index].len -= left_store_len;
 				disk_hash->hash_bucket[index].seg_stored_len += left_store_len;
 				disk_hash->hash_bucket[index].write_offset += left_store_len * sizeof(struct disk_hash_node);
@@ -95,12 +95,12 @@ int add_2_disk_hash(struct disk_hash * disk_hash, struct disk_hash_node disk_has
 			}
 			else
 			{
-				simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_seg_len * sizeof(struct disk_hash_node), disk_hash->manager->f);
+				simplewrite(disk_hash->hash_bucket[index].write_offset, &(disk_hash->hash_bucket[index].disk_hash_node[store_pos]), left_seg_len * sizeof(struct disk_hash_node), disk_hash->manager);
 				disk_hash->hash_bucket[index].header.previous = disk_hash->hash_bucket[index].cur_seg_offset;
 				disk_hash->hash_bucket[index].cur_seg_offset = get_new_seg(disk_hash->manager);
 				disk_hash->hash_bucket[index].write_offset = disk_hash->hash_bucket[index].cur_seg_offset;
 
-				simplewrite(disk_hash->hash_bucket[index].write_offset, &disk_hash->hash_bucket[index].header, sizeof(struct disk_hash_seg_header), disk_hash->manager->f);
+				simplewrite(disk_hash->hash_bucket[index].write_offset, &disk_hash->hash_bucket[index].header, sizeof(struct disk_hash_seg_header), disk_hash->manager);
 				disk_hash->hash_bucket[index].write_offset += sizeof(struct disk_hash_seg_header);
 
 				disk_hash->hash_bucket[index].len -= left_seg_len;
@@ -153,7 +153,7 @@ int lookup_fingerprint_in_disk_hash(struct disk_hash * disk_hash, char fingerpri
 	}
 	while(0XFFFFFFFFFFFFFFFF != read_offset)
 	{
-		simpleread(read_offset, disk_hash->read_seg, read_len, disk_hash->manager->f);
+		simpleread(read_offset, disk_hash->read_seg, read_len, disk_hash->manager);
 		if(SEG_SIZE == read_len)
 		{
 			len = DISKHASH_PER_SEG;

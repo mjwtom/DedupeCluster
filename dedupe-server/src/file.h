@@ -57,10 +57,10 @@ int add_2_file(struct file f, struct file_seg * f_seg)
 		write_offset = f_seg->seg_offset;
 		f_seg->seg_offset = get_new_seg(f_seg->manager);
 		f_seg->header.next = f_seg->seg_offset;
-		simplewrite(write_offset, &(f_seg->header), sizeof(struct file_seg_header), f_seg->manager->f);
+		simplewrite(write_offset, &(f_seg->header), sizeof(struct file_seg_header), f_seg->manager);
 		f_seg->header.previous = write_offset;
 		write_offset += sizeof(struct file_seg_header);
-		simplewrite(write_offset, f_seg->file, sizeof(struct file) * FILE_PER_SEG, f_seg->manager->f);
+		simplewrite(write_offset, f_seg->file, sizeof(struct file) * FILE_PER_SEG, f_seg->manager);
 		f_seg->len = 0;
 	}
 	f_seg->file[f_seg->len] = f;
@@ -84,8 +84,8 @@ int get_files(struct file * f, int len, int pos, struct file_seg * f_seg)
 		while(seg_offset != f_seg->seg_offset)
 		{
 			read_offset = seg_offset + sizeof(struct file_seg_header);
-			simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager->f);
-			simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager->f);
+			simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager);
+			simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager);
 			seg_offset = header.next;
 			f += FILE_PER_SEG;
 			got += FILE_PER_SEG;
@@ -116,8 +116,8 @@ int get_files(struct file * f, int len, int pos, struct file_seg * f_seg)
 			if(len > FILE_PER_SEG)
 			{
 				read_offset = seg_offset + sizeof(struct file_seg_header);
-				simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager->f);
-				simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager->f);
+				simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager);
+				simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager);
 				seg_offset = header.previous;
 				f += FILE_PER_SEG;
 				got += FILE_PER_SEG;
@@ -127,7 +127,7 @@ int get_files(struct file * f, int len, int pos, struct file_seg * f_seg)
 			{
 				diff = FILE_PER_SEG - len;
 				read_offset = seg_offset + sizeof(struct file_seg_header) + sizeof(struct file) * diff;
-				simpleread(read_offset, f, len * sizeof(struct file), f_seg->manager->f);
+				simpleread(read_offset, f, len * sizeof(struct file), f_seg->manager);
 				got += len;
 				len -= len;
 			}
@@ -143,8 +143,8 @@ int get_files(struct file * f, int len, int pos, struct file_seg * f_seg)
 				if(len > FILE_PER_SEG)
 				{
 					read_offset = seg_offset + sizeof(struct file_seg_header);
-					simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager->f);
-					simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager->f);
+					simpleread(read_offset, f, FILE_PER_SEG * sizeof(struct file), f_seg->manager);
+					simpleread(seg_offset, &header, sizeof(struct file_seg_header), f_seg->manager);
 					seg_offset = header.next;
 					f += FILE_PER_SEG;
 					got += FILE_PER_SEG;
@@ -153,7 +153,7 @@ int get_files(struct file * f, int len, int pos, struct file_seg * f_seg)
 				else
 				{
 					read_offset = seg_offset + sizeof(struct file_seg_header);
-					simpleread(read_offset, f, len * sizeof(struct file), f_seg->manager->f);
+					simpleread(read_offset, f, len * sizeof(struct file), f_seg->manager);
 					got += len;
 					len -= len;
 				}

@@ -193,8 +193,8 @@ int init_proxy(struct proxy_manager * pm)
 }
 
 int main(int argc, char * argv[]) {
-	char conf_filename;
-	struct proxy_manger *pm;
+	char *conf_filename;
+	struct proxy_manager *pm;
 	if(argc < 2)
 	{
 		printf("please give a configure file");
@@ -204,7 +204,7 @@ int main(int argc, char * argv[]) {
 	argc --;
 	argv ++;
 	conf_filename = *argv;
-	pm = (struct proxy_manager*) malloc(sizeof(struct proxy_manager));
+	pm = (struct proxy_manager *) malloc(sizeof(struct proxy_manager));
 	if(NULL == pm)
 	{
 		printf("cannot malloc proxy_manager\n");

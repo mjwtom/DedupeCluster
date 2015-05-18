@@ -273,18 +273,11 @@ int main(int argc, char* argv[])
 	int fd, client_fd;
 	short port;
 	char * filename;
-	config_t * conf;
 	struct dedupe_manager *dm;
 	dm = (struct dedupe_manager*)malloc(sizeof(struct dedupe_manager));
 	if(NULL == dm)
 	{
 		perror("cannot malloc dedupe manager");
-		return -1;
-	}
-	conf = (config_t*)malloc(sizeof(config_t));
-	if(NULL == conf)
-	{
-		perror("cannot malloc conf");
 		return -1;
 	}
 	//skip the programe name itself

@@ -56,9 +56,9 @@ uint64_t add_metadata(struct metadata mtdata, struct mtdata_seg * mt_seg)
 		write_offset = mt_seg->mt_seg_offset;
 		mt_seg->mt_seg_offset = get_new_seg(mt_seg->manager);
 		mt_seg->header.next = mt_seg->mt_seg_offset;
-		simplewrite(write_offset, &mt_seg->header, sizeof(struct mtdata_seg_header), mt_seg->manager->f);
+		simplewrite(write_offset, &mt_seg->header, sizeof(struct mtdata_seg_header), mt_seg->manager);
 		write_offset += sizeof(struct mtdata_seg_header);
-		simplewrite(write_offset, mt_seg->mtdata, MTDATA_PER_SEGMENT * sizeof(struct metadata), mt_seg->manager->f);
+		simplewrite(write_offset, mt_seg->mtdata, MTDATA_PER_SEGMENT * sizeof(struct metadata), mt_seg->manager);
 		mt_seg->len = 0;
 	}
 	offset = mt_seg->mt_seg_offset + sizeof(struct mtdata_seg_header) + mt_seg->len * sizeof(struct metadata);
@@ -100,17 +100,17 @@ int get_metadata(struct mtdata_seg * mt_seg, struct metadata * mtdata, int len, 
 			left = (seg_offset + SEG_SIZE - offset) / sizeof(struct metadata);
 			if(left >= len)
 			{
-				simpleread(offset, mtdata, len * sizeof(struct metadata), mt_seg->manager->f);
+				simpleread(offset, mtdata, len * sizeof(struct metadata), mt_seg->manager);
 				len -= len;
 				mtdata += len;
 			}
 			else
 			{
-				simpleread(offset, mtdata, left * sizeof(struct metadata), mt_seg->manager->f);
+				simpleread(offset, mtdata, left * sizeof(struct metadata), mt_seg->manager);
 				len -= left;
 				mtdata += left;
 
-				simpleread(seg_offset, &header, sizeof(struct mtdata_seg_header), mt_seg->manager->f);
+				simpleread(seg_offset, &header, sizeof(struct mtdata_seg_header), mt_seg->manager);
 				offset = header.next + sizeof(struct mtdata_seg_header);
 			}
 		}

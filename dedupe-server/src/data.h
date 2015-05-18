@@ -62,9 +62,9 @@ uint64_t add_data(char *buf, uint32_t len, struct data_seg * dt_seg)
 			write_offset = dt_seg->data_seg_offset;
 			dt_seg->data_seg_offset = get_new_seg(dt_seg->manager);
 			dt_seg->header.next = dt_seg->data_seg_offset;
-			simplewrite(write_offset, &dt_seg->header, sizeof(struct data_seg_header), dt_seg->manager->f);
+			simplewrite(write_offset, &dt_seg->header, sizeof(struct data_seg_header), dt_seg->manager);
 			write_offset += sizeof(struct data_seg_header);
-			simplewrite(write_offset, dt_seg->data, dt_seg->len, dt_seg->manager->f);
+			simplewrite(write_offset, dt_seg->data, dt_seg->len, dt_seg->manager);
 			dt_seg->len = 0;
 			left_len -= left_seg_len;
 			data_p += left_seg_len;
@@ -101,16 +101,16 @@ int get_data(char *buf, uint64_t offset, uint32_t len, struct data_seg * dt_seg)
 			left_seg = seg_offset + SEG_SIZE - offset;
 			if(left_seg >= len)
 			{
-				simpleread(offset, buf, len, dt_seg->manager->f);
+				simpleread(offset, buf, len, dt_seg->manager);
 				buf += len;
 				len -= len;
 			}
 			else
 			{
-				simpleread(offset, buf, left_seg, dt_seg->manager->f);
+				simpleread(offset, buf, left_seg, dt_seg->manager);
 				buf += left_seg;
 				len -= left_seg;
-				simpleread(seg_offset, &header, sizeof(struct data_seg_header), dt_seg->manager->f);
+				simpleread(seg_offset, &header, sizeof(struct data_seg_header), dt_seg->manager);
 				offset = header.next + sizeof(struct data_seg_header);
 			}
 		}
