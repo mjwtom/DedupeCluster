@@ -230,8 +230,7 @@ int dedupe(int fd)
 	size_t recv_size;
 	char * buf, *recv_buf;
 	buf = malloc(MAX_BUF_SIZE);
-	int running = 1;
-	while(running)
+	while(1)
 	{
 		if((recv_size = recv(fd, &msg, sizeof(msg), 0)) != sizeof(msg))
 		{
@@ -260,7 +259,6 @@ int dedupe(int fd)
 			}
 			break;
 		case PRO_END:
-			running = 0;
 			break;
 		}
 	}

@@ -1,4 +1,4 @@
-16:40:04 **** Incremental Build of configuration Debug for project dedupe-server ****
+01:41:02 **** Incremental Build of configuration Debug for project dedupe-server ****
 make all 
 Building file: ../src/dedupe-server.c
 Invoking: GCC C Compiler
@@ -299,15 +299,17 @@ In file included from ../src/file.h:14:0,
 ../src/dedupe-server.c:53:6: warning: variable ‘uncom_len’ set but not used [-Wunused-but-set-variable]
   int uncom_len;
       ^
-../src/dedupe-server.c: In function ‘main’:
-../src/dedupe-server.c:292:18: error: ‘filename’ undeclared (first use in this function)
-  dedupe_init(dm, filename);
-                  ^
-../src/dedupe-server.c:292:18: note: each undeclared identifier is reported only once for each function it appears in
-../src/dedupe-server.c:273:9: warning: variable ‘conf_filename’ set but not used [-Wunused-but-set-variable]
-  char * conf_filename;
-         ^
-make: *** [src/dedupe-server.o] Error 1
+../src/dedupe-server.c: In function ‘main2’:
+../src/dedupe-server.c:133:42: warning: ‘ret’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+    dedup->f_seg.file[file_pos].chunk_num = ret;
+                                          ^
+Finished building: ../src/dedupe-server.c
+ 
+Building target: dedupe-server
+Invoking: GCC C Linker
+gcc  -o "dedupe-server"  ./src/debug.o ./src/dedupe-server.o ./src/network.o   
+Finished building target: dedupe-server
+ 
 
-16:40:05 Build Finished (took 165ms)
+01:41:02 Build Finished (took 472ms)
 

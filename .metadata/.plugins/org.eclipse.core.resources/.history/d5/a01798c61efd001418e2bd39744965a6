@@ -32,7 +32,6 @@ struct proxy_manager
 {
 	char * ip;
 	unsigned short port;
-	int sock;
 	char * recipe_filename;
 	FILE * recipe_file;
 	int dedupe_server_num;
