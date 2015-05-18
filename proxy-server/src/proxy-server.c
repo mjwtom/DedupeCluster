@@ -15,16 +15,10 @@
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
-#define DEFAULT_PORT 8000
-#define MAXLINE 4096
-
-
-
-
-#include <stdio.h>
-#include <stdlib.h>
+#include <libconfig.h>
 
 #if 1
+#include "proxy-server.h"
 #include "config.h"
 #include "network.h"
 #include "protocol.h"
@@ -95,25 +89,120 @@ int proxy(int client_fd, int dedupe_fd[], int dedupe_number, FILE* dedupe_file)
 	return 0;
 }
 
+int parse_conf(char * conf_filename, struct proxy_manager * pm)
+{
+	config_t conf;
+	config_setting_t * servers_setting, *server_setting;
+	char *s;
+	int i;
+	if(NULL == conf_filename)
+	{
+		return -1;
+	}
+	config_init(&conf);
+	if(CONFIG_FALSE == config_read_file(&conf, conf_filename))
+	{
+		printf("cannot read configure file: %s, file: %s, line: %d, text:%s\n",
+				conf_filename,
+				config_error_file(&conf),
+				config_error_line(&conf),
+				config_error_text (&conf));
+		return -1;
+	}
+	//start to parse
+	//proxy-server
+	if(CONFIG_FALSE == config_lookup_string(&conf, "proxy-network.ip", (const char **)&s))
+	{
+		printf("cannot get the proxy-server ip address\n");
+		return -1;
+	}
+	pm->ip = strdup(s);
+	if(CONFIG_FALSE == config_lookup_int(&conf, "proxy-network.port", (int*)&pm->port))
+	{
+		printf("cannot get the proxy-server port\n");
+		return -1;
+	}
+	if(CONFIG_FALSE == config_lookup_string(&conf, "recipe-name", (const char **)&s))
+	{
+		printf("cannot get the recipe file name\n");
+		return -1;
+	}
+	pm->recipe_filename = strdup(s);
+	servers_setting = config_lookup(&conf, "dedupe-servers");
+	if(NULL == servers_setting)
+	{
+		printf("can not find the dedupe server configuration");
+		return -1;
+	}
+	pm->dedupe_server_num = config_setting_length(servers_setting);
+	pm->ds = (struct dedupe_server*) malloc(pm->dedupe_server_num * sizeof(struct dedupe_server));
+	if(NULL == pm->ds)
+	{
+		printf("cannot malloc for dedup-server\n");
+		return -1;
+	}
+	for(i = 0 ; i < pm->dedupe_server_num ; i ++)
+	{
+		server_setting = config_setting_get_elem(servers_setting, i);
+		if(NULL == server_setting)
+		{
+			printf("cannot get the %dth setting from dedupe server list\n", i);
+			return -1;
+		}
+		if(CONFIG_FALSE == config_setting_lookup_string(server_setting, "ip", (const char **)&s))
+		{
+			printf("cannot get the %dth dedupe server ip address\n", i);
+			return -1;
+		}
+		pm->ds[i].ip = strdup(s);
+		if(CONFIG_FALSE == config_setting_lookup_int(server_setting, "port", (int*)&pm->ds[i].port))
+		{
+			printf("cannot get the proxy-server port\n");
+			return -1;
+		}
+	}
+	config_destroy(&conf);
+	return 0;
+}
+
+int init_proxy(struct proxy_manager * pm)
+{
+	return 0;
+}
+
 int main(int argc, char * argv[]) {
 	short port;
-	char * recipe_filename;
-	short dedupe_server_ports[MAX_DEDUPE_NODE];
-	int dedupe_server_fds[MAX_DEDUPE_NODE];
-	int dedupe_server_number;
+	char * conf_filename;
+	struct proxy_manager * pm;
 	int fd, client_fd;
 	int i;
 	FILE * proxy_file;
+	if(argc < 2)
+	{
+		printf("please give a configure file");
+		return -1;
+	}
 	//skip the program name
 	argc --;
 	argv ++;
-
-	port = PROXY_SERVER_PORT;
-	recipe_filename = *argv;
-
-	argc --;
-	argv ++;
-	i = 0;
+	conf_filename = *argv;
+	pm = (struct proxy_manager*) malloc(sizeof(struct proxy_manager));
+	if(NULL == pm)
+	{
+		printf("cannot malloc proxy_manager\n");
+		return -1;
+	}
+	if(parse_conf(conf_filename, pm) < 0)
+	{
+		printf("cannot parse the configure file\n");
+		return -1;
+	}
+	if(init_proxy(pm) < 0)
+	{
+		printf("cannot initialize the proxy-server\n");
+		return -1;
+	}
+	/*i = 0;
 	while(argc > 0)
 	{
 		dedupe_server_ports[i] = atoi(*argv);
@@ -148,6 +237,6 @@ int main(int argc, char * argv[]) {
 	client_fd = accept_client(fd);
 	proxy(client_fd, dedupe_server_fds, dedupe_server_number, proxy_file);
 	close(client_fd);
-	close(fd);
+	close(fd);*/
 	return EXIT_SUCCESS;
 }

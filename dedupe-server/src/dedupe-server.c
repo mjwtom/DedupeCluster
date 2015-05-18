@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <libconfig.h>
 
 #include "config.h"
 #include "network.h"
@@ -269,18 +270,25 @@ int main(int argc, char* argv[])
 {
 	int fd, client_fd;
 	short port;
-	char * filename;
+	char * conf_filename;
+	config_t * conf;
 	struct dedupe_manager *dm;
 	dm = (struct dedupe_manager*)malloc(sizeof(struct dedupe_manager));
+	if(NULL == dm)
+	{
+		perror("cannot malloc dedupe manager");
+		return -1;
+	}
+	conf = (config_t*)malloc(sizeof(config_t));
+	if(NULL == conf)
+	{
+		perror("cannot malloc conf");
+		return -1;
+	}
 	//skip the programe name itself
-	/*argc --;
-	argv ++;
-	port = atoi(*argv);*/
-	port = DEDUPE_SERVER_PORT;
 	argc --;
 	argv ++;
-	filename = *argv;
-	dm = (struct dedupe_manager*)malloc(sizeof(struct dedupe_manager));
+	conf_filename = *argv;
 	dedupe_init(dm, filename);
 	fd = get_server_socket(port);
 	client_fd = accept_client(fd);

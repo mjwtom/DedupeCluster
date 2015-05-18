@@ -1,0 +1,15 @@
+01:11:02 **** Incremental Build of configuration Debug for project practice ****
+make all 
+Building file: ../src/practice.c
+Invoking: GCC C Compiler
+gcc -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"src/practice.d" -MT"src/practice.d" -o "src/practice.o" "../src/practice.c"
+Finished building: ../src/practice.c
+ 
+Building target: practice
+Invoking: GCC C Linker
+gcc  -o "practice"  ./src/practice.o   
+Finished building target: practice
+ 
+
+01:11:02 Build Finished (took 223ms)
+
