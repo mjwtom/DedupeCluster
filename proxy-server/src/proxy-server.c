@@ -192,6 +192,11 @@ int init_proxy(struct proxy_manager * pm)
 	return 0;
 }
 
+int run_proxy(struct proxy_manager * pm)
+{
+	return 0;
+}
+
 int main(int argc, char * argv[]) {
 	char *conf_filename;
 	struct proxy_manager *pm;
@@ -220,5 +225,6 @@ int main(int argc, char * argv[]) {
 		printf("cannot initialize the proxy-server\n");
 		return -1;
 	}
+	run_proxy(pm);
 	return EXIT_SUCCESS;
 }
